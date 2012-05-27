@@ -13,6 +13,26 @@ ERROR_CONNECTING = 7
 ERROR_CANCELLED = 8
 error_number_t = ct.c_uint
 
+class Error(RuntimeError) :
+    name = \
+        {
+            0 : "NONE",
+            1 : "GENERAL",
+            2 : "PTP_LAYER",
+            3 : "USB_LAYER",
+            4 : "MEMORY_ALLOCATION",
+            5 : "NO_DEVICE_ATTACHED",
+            6 : "STORAGE_FULL",
+            7 : "CONNECTING",
+            8 : "CANCELLED",
+        }
+
+    def __init__(self, code) :
+        RuntimeError.__init__(self, "libmtp error %d -- %s" % (code, self.name.get(code, "?")))
+    #end __init__
+
+#end Error
+
 class error_t(ct.Structure) :
     pass
 #end error_t
@@ -81,7 +101,7 @@ def Get_Connected_Devices() :
     devices = ct.POINTER(mtpdevice_t)()
     status = mtp.LIBMTP_Get_Connected_Devices(ct.byref(devices))
     if status != ERROR_NONE :
-        raise RuntimeError("libmtp error %d" % status) # TBD use custom exception type
+        raise Error(status)
     #end if
     dev = devices
     result = []
