@@ -137,9 +137,9 @@ def Get_Connected_Devices() :
                     (k, getattr(sto, k))
                     for k in
                         (
-                            "StorageType", "FilesystemType", "AccessCapability", "MaxCapacity",
-                            "FreeSpaceInBytes", "FreeSpaceInObjects", "StorageDescription",
-                            "VolumeIdentifier",
+                            "id", "StorageType", "FilesystemType", "AccessCapability",
+                            "MaxCapacity", "FreeSpaceInBytes", "FreeSpaceInObjects",
+                            "StorageDescription", "VolumeIdentifier",
                         )
                   )
               )
