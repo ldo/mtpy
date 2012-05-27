@@ -61,6 +61,10 @@ devicestorage_t._fields_ = \
         ("prev", ct.POINTER(devicestorage_t)),
     ]
 
+LIBMTP_STORAGE_SORTBY_NOTSORTED = 0
+LIBMTP_STORAGE_SORTBY_FREESPACE = 1
+LIBMTP_STORAGE_SORTBY_MAXSPACE =  2
+
 class device_extension_t(ct.Structure) :
     pass
 #end device_extension_t
@@ -106,6 +110,10 @@ def Get_Connected_Devices() :
     dev = devices
     result = []
     while bool(dev) :
+        status = mtp.LIBMTP_Get_Storage(dev, LIBMTP_STORAGE_SORTBY_NOTSORTED)
+        if status != ERROR_NONE :
+            raise Error(status)
+        #end if
         dev = dev.contents
         item = dict \
           (
@@ -118,6 +126,26 @@ def Get_Connected_Devices() :
                     "default_zencast_folder", "default_album_folder", "default_text_folder",
                 )
           )
+        storage = []
+        sto = dev.storage
+        while bool(sto) :
+            sto = sto.contents
+            storage.append \
+              (
+                dict
+                  (
+                    (k, getattr(sto, k))
+                    for k in
+                        (
+                            "StorageType", "FilesystemType", "AccessCapability", "MaxCapacity",
+                            "FreeSpaceInBytes", "FreeSpaceInObjects", "StorageDescription",
+                            "VolumeIdentifier",
+                        )
+                  )
+              )
+            sto = sto.next
+        #end while
+        item["storage"] = storage
         extensions = []
         ext = dev.extensions
         while bool(ext) :
