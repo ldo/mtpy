@@ -1,4 +1,9 @@
 import ctypes as ct
+#+
+# My ctypes-based interface to libmtp.
+#
+# Written by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+#-
 
 import sys # debug
 
@@ -62,6 +67,163 @@ error_t._fields_ = \
         ("error_text", ct.c_char_p),
         ("next", ct.POINTER(error_t)),
     ]
+
+# The filetypes defined here are the external types used
+# by the libmtp library interface. The types used internally
+# as PTP-defined enumerator types is something different.
+FILETYPE_FOLDER = 0
+FILETYPE_WAV = 1
+FILETYPE_MP3 = 2
+FILETYPE_WMA = 3
+FILETYPE_OGG = 4
+FILETYPE_AUDIBLE = 5
+FILETYPE_MP4 = 6
+FILETYPE_UNDEF_AUDIO = 7
+FILETYPE_WMV = 8
+FILETYPE_AVI = 9
+FILETYPE_MPEG = 10
+FILETYPE_ASF = 11
+FILETYPE_QT = 12
+FILETYPE_UNDEF_VIDEO = 13
+FILETYPE_JPEG = 14
+FILETYPE_JFIF = 15
+FILETYPE_TIFF = 16
+FILETYPE_BMP = 17
+FILETYPE_GIF = 18
+FILETYPE_PICT = 19
+FILETYPE_PNG = 20
+FILETYPE_VCALENDAR1 = 21
+FILETYPE_VCALENDAR2 = 22
+FILETYPE_VCARD2 = 23
+FILETYPE_VCARD3 = 24
+FILETYPE_WINDOWSIMAGEFORMAT = 25
+FILETYPE_WINEXEC = 26
+FILETYPE_TEXT = 27
+FILETYPE_HTML = 28
+FILETYPE_FIRMWARE = 29
+FILETYPE_AAC = 30
+FILETYPE_MEDIACARD = 31
+FILETYPE_FLAC = 32
+FILETYPE_MP2 = 33
+FILETYPE_M4A = 34
+FILETYPE_DOC = 35
+FILETYPE_XML = 36
+FILETYPE_XLS = 37
+FILETYPE_PPT = 38
+FILETYPE_MHT = 39
+FILETYPE_JP2 = 40
+FILETYPE_JPX = 41
+FILETYPE_ALBUM = 42
+FILETYPE_PLAYLIST = 43
+FILETYPE_UNKNOWN = 44
+filetype_t = ct.c_uint
+
+def FILETYPE_IS_AUDIO(a) :
+    return \
+        (
+            a == FILETYPE_WAV
+        or
+            a == FILETYPE_MP3
+        or
+            a == FILETYPE_MP2
+        or
+            a == FILETYPE_WMA
+        or
+            a == FILETYPE_OGG
+        or
+            a == FILETYPE_FLAC
+        or
+            a == FILETYPE_AAC
+        or
+            a == FILETYPE_M4A
+        or
+            a == FILETYPE_AUDIBLE
+        or
+            a == FILETYPE_UNDEF_AUDIO
+        )
+#end FILETYPE_IS_AUDIO
+
+def FILETYPE_IS_VIDEO(a) :
+    return \
+        (
+            a == LIBMTP_FILETYPE_WMV
+        or
+            a == LIBMTP_FILETYPE_AVI
+        or
+            a == LIBMTP_FILETYPE_MPEG
+        or
+            a == LIBMTP_FILETYPE_UNDEF_VIDEO
+        )
+ #end FILETYPE_IS_VIDEO
+
+def FILETYPE_IS_AUDIOVIDEO(a) :
+    return \
+        (
+            a == LIBMTP_FILETYPE_MP4
+        or
+            a == LIBMTP_FILETYPE_ASF
+        or
+            a == LIBMTP_FILETYPE_QT
+        )
+#end FILETYPE_IS_AUDIOVIDEO
+
+def FILETYPE_IS_TRACK(a) :
+    """Use this to determine if the File API or Track API
+    should be used to upload or download an object."""
+    return \
+        (
+            LIBMTP_FILETYPE_IS_AUDIO(a)
+        or
+            LIBMTP_FILETYPE_IS_VIDEO(a)
+        or
+            LIBMTP_FILETYPE_IS_AUDIOVIDEO(a)
+        )
+#end FILETYPE_IS_TRACK
+
+def FILETYPE_IS_IMAGE(a) :
+    return \
+        (
+            a == FILETYPE_JPEG
+        or
+            a == FILETYPE_JFIF
+        or
+            a == FILETYPE_TIFF
+        or
+            a == FILETYPE_BMP
+        or
+            a == FILETYPE_GIF
+        or
+            a == FILETYPE_PICT
+        or
+            a == FILETYPE_PNG
+        or
+            a == FILETYPE_JP2
+        or
+            a == FILETYPE_JPX
+        or
+            a == FILETYPE_WINDOWSIMAGEFORMAT
+        )
+#end FILETYPE_IS_IMAGE
+
+def FILETYPE_IS_ADDRESSBOOK(a) :
+    """Addressbook and Business card filetype test."""
+    return \
+        (
+            a == LIBMTP_FILETYPE_VCARD2
+        or
+            a == LIBMTP_FILETYPE_VCARD2
+        )
+#end FILETYPE_IS_ADDRESSBOOK
+
+def FILETYPE_IS_CALENDAR(a) :
+    """Calendar and Appointment filetype test."""
+    return \
+        (
+            a == LIBMTP_FILETYPE_VCALENDAR1
+        or
+            a == LIBMTP_FILETYPE_VCALENDAR2
+        )
+#end FILETYPE_IS_CALENDAR
 
 class device_entry_t(ct.Structure) :
     _fields_ = \
@@ -146,6 +308,7 @@ mtpdevice_t._fields_ = \
 mtp.LIBMTP_Open_Raw_Device.restype = ct.POINTER(mtpdevice_t)
 
 class RawDevice() :
+    """representation of an available MTP device, as returned by get_raw_devices."""
 
     def __init__(self, device) :
         self.device = raw_device_t(device.device_entry, device.bus_location, device.devnum)
@@ -167,6 +330,7 @@ class RawDevice() :
 #end RawDevice
 
 class Device() :
+    """wraps an opened MTP device connection, as returned from RawDevice.open."""
 
     def __init__(self, device) :
         self.device = device
@@ -219,6 +383,7 @@ class Device() :
     #end __init__
 
     def close(self) :
+        """closes the connection. Must be the last operation on this Device object."""
         mtp.LIBMTP_Release_Device(self.device)
         del self.device
     #end close
@@ -256,6 +421,8 @@ class Device() :
     #end set_sync_partner
 
     def get_battery_level(self) :
+        # fixme: lots of devices fail to implement this. Should follow libmtp detect.c
+        # example and clear device error stack without failing.
         maxlevel = ct.c_int(0)
         curlevel = ct.c_int(0)
         check_status(mtp.LIBMTP_Get_Batterylevel(self.device, ct.byref(maxlevel), ct.byref(curlevel)))
@@ -294,6 +461,7 @@ class Device() :
 #end Device
 
 def get_raw_devices() :
+    """returns a list of all MTP devices detected on the system."""
     devices = ct.POINTER(raw_device_t)()
     nr_devices = ct.c_int(0)
     check_status(mtp.LIBMTP_Detect_Raw_Devices(ct.byref(devices), ct.byref(nr_devices)))
