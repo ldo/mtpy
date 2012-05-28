@@ -146,24 +146,24 @@ def FILETYPE_IS_AUDIO(a) :
 def FILETYPE_IS_VIDEO(a) :
     return \
         (
-            a == LIBMTP_FILETYPE_WMV
+            a == FILETYPE_WMV
         or
-            a == LIBMTP_FILETYPE_AVI
+            a == FILETYPE_AVI
         or
-            a == LIBMTP_FILETYPE_MPEG
+            a == FILETYPE_MPEG
         or
-            a == LIBMTP_FILETYPE_UNDEF_VIDEO
+            a == FILETYPE_UNDEF_VIDEO
         )
  #end FILETYPE_IS_VIDEO
 
 def FILETYPE_IS_AUDIOVIDEO(a) :
     return \
         (
-            a == LIBMTP_FILETYPE_MP4
+            a == FILETYPE_MP4
         or
-            a == LIBMTP_FILETYPE_ASF
+            a == FILETYPE_ASF
         or
-            a == LIBMTP_FILETYPE_QT
+            a == FILETYPE_QT
         )
 #end FILETYPE_IS_AUDIOVIDEO
 
@@ -172,11 +172,11 @@ def FILETYPE_IS_TRACK(a) :
     should be used to upload or download an object."""
     return \
         (
-            LIBMTP_FILETYPE_IS_AUDIO(a)
+            FILETYPE_IS_AUDIO(a)
         or
-            LIBMTP_FILETYPE_IS_VIDEO(a)
+            FILETYPE_IS_VIDEO(a)
         or
-            LIBMTP_FILETYPE_IS_AUDIOVIDEO(a)
+            FILETYPE_IS_AUDIOVIDEO(a)
         )
 #end FILETYPE_IS_TRACK
 
@@ -209,9 +209,9 @@ def FILETYPE_IS_ADDRESSBOOK(a) :
     """Addressbook and Business card filetype test."""
     return \
         (
-            a == LIBMTP_FILETYPE_VCARD2
+            a == FILETYPE_VCARD2
         or
-            a == LIBMTP_FILETYPE_VCARD2
+            a == FILETYPE_VCARD2
         )
 #end FILETYPE_IS_ADDRESSBOOK
 
@@ -219,9 +219,9 @@ def FILETYPE_IS_CALENDAR(a) :
     """Calendar and Appointment filetype test."""
     return \
         (
-            a == LIBMTP_FILETYPE_VCALENDAR1
+            a == FILETYPE_VCALENDAR1
         or
-            a == LIBMTP_FILETYPE_VCALENDAR2
+            a == FILETYPE_VCALENDAR2
         )
 #end FILETYPE_IS_CALENDAR
 
@@ -263,9 +263,9 @@ devicestorage_t._fields_ = \
         ("prev", ct.POINTER(devicestorage_t)),
     ]
 
-LIBMTP_STORAGE_SORTBY_NOTSORTED = 0
-LIBMTP_STORAGE_SORTBY_FREESPACE = 1
-LIBMTP_STORAGE_SORTBY_MAXSPACE =  2
+STORAGE_SORTBY_NOTSORTED = 0
+STORAGE_SORTBY_FREESPACE = 1
+STORAGE_SORTBY_MAXSPACE =  2
 
 class device_extension_t(ct.Structure) :
     pass
@@ -334,7 +334,7 @@ class Device() :
 
     def __init__(self, device) :
         self.device = device
-        check_status(mtp.LIBMTP_Get_Storage(device, LIBMTP_STORAGE_SORTBY_NOTSORTED))
+        check_status(mtp.LIBMTP_Get_Storage(device, STORAGE_SORTBY_NOTSORTED))
         for \
             k \
         in \
