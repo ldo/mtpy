@@ -3,6 +3,8 @@ import ctypes as ct
 import sys # debug
 
 mtp = ct.cdll.LoadLibrary("libmtp.so")
+mtp.LIBMTP_Init()
+mtp.LIBMTP_Release_Device.restype = None
 mtp.LIBMTP_Get_Manufacturername.restype = ct.c_char_p
 mtp.LIBMTP_Get_Modelname.restype = ct.c_char_p
 mtp.LIBMTP_Get_Serialnumber.restype = ct.c_char_p
@@ -10,6 +12,9 @@ mtp.LIBMTP_Get_Deviceversion.restype = ct.c_char_p
 mtp.LIBMTP_Get_Friendlyname.restype = ct.c_char_p
 mtp.LIBMTP_Get_Syncpartner.restype = ct.c_char_p
 mtp.LIBMTP_Get_Filetype_Description.restype = ct.c_char_p
+libc = ct.cdll.LoadLibrary("libc.so.6")
+free = libc.free
+free.restype = None
 
 ERROR_NONE = 0
 ERROR_GENERAL = 1
@@ -57,6 +62,26 @@ error_t._fields_ = \
         ("error_text", ct.c_char_p),
         ("next", ct.POINTER(error_t)),
     ]
+
+class device_entry_t(ct.Structure) :
+    _fields_ = \
+        [
+            ("vendor", ct.c_char_p),
+            ("vendor_id", ct.c_uint16),
+            ("product", ct.c_char_p),
+            ("product_id", ct.c_uint16),
+            ("device_flags", ct.c_uint32), # Bugs, device specifics etc
+        ]
+#end device_entry_t
+
+class raw_device_t(ct.Structure) :
+    _fields_ = \
+        [
+            ("device_entry", device_entry_t),
+            ("bus_location", ct.c_uint32), # if device available
+            ("devnum", ct.c_uint8), # Device number on the bus, if device available
+        ]
+#end raw_device_t
 
 class devicestorage_t(ct.Structure) :
     pass
@@ -118,7 +143,28 @@ mtpdevice_t._fields_ = \
         ("next", ct.POINTER(mtpdevice_t)), # Pointer to next device in linked list; NULL if this is the last device
     ]
 
-connected_devices = ct.POINTER(mtpdevice_t)()
+mtp.LIBMTP_Open_Raw_Device.restype = ct.POINTER(mtpdevice_t)
+
+class RawDevice() :
+
+    def __init__(self, device) :
+        self.device = raw_device_t(device.device_entry, device.bus_location, device.devnum)
+        for attr in ("vendor", "product") :
+            setattr \
+              ( # make separate copy of pointer fields
+                self.device.device_entry,
+                attr,
+                bytes(getattr(device.device_entry, attr))
+              )
+            setattr(self, attr, getattr(device.device_entry, attr).decode("utf-8"))
+        #end for
+    #end __init__
+
+    def open(self) :
+        return Device(mtp.LIBMTP_Open_Raw_Device(ct.byref(self.device)))
+    #end open
+
+#end RawDevice
 
 class Device() :
 
@@ -172,6 +218,11 @@ class Device() :
         #end while
     #end __init__
 
+    def close(self) :
+        mtp.LIBMTP_Release_Device(self.device)
+        del self.device
+    #end close
+
     def get_manufacturer_name(self) :
         return bytes(mtp.LIBMTP_Get_Manufacturername(self.device)).decode("utf-8")
     #end get_manufacturer_name
@@ -205,10 +256,10 @@ class Device() :
     #end set_sync_partner
 
     def get_battery_level(self) :
-        val1 = ct.c_int(0)
-        val2 = ct.c_int(0)
-        check_status(mtp.LIBMTP_Get_Batterylevel(self.device, ct.byref(val1), ct.byref(val2)))
-        return val1.value, val2.value
+        maxlevel = ct.c_int(0)
+        curlevel = ct.c_int(0)
+        check_status(mtp.LIBMTP_Get_Batterylevel(self.device, ct.byref(maxlevel), ct.byref(curlevel)))
+        return maxlevel.value, curlevel.value
     #end get_battery_level
 
     def get_secure_time(self) :
@@ -242,20 +293,14 @@ class Device() :
 
 #end Device
 
-def get_connected_devices(refresh = True) :
-    global connected_devices
-    if refresh or not bool(connected_devices) :
-        if bool(connected_devices) :
-            mtp.LIBMTP_Release_Device_List(connected_devices)
-            connected_devices = ct.POINTER(mtpdevice_t)()
-        #end if
-        check_status(mtp.LIBMTP_Get_Connected_Devices(ct.byref(connected_devices)))
-    #end if
-    dev = connected_devices
+def get_raw_devices() :
+    devices = ct.POINTER(raw_device_t)()
+    nr_devices = ct.c_int(0)
+    check_status(mtp.LIBMTP_Detect_Raw_Devices(ct.byref(devices), ct.byref(nr_devices)))
     result = []
-    while bool(dev) :
-        result.append(Device(dev))
-        dev = dev.contents.next
-    #end while
+    for i in range(0, nr_devices.value) :
+        result.append(RawDevice(devices[i]))
+    #end for
+    free(devices)
     return result
-#end get_connected_devices
+#end get_raw_devices
