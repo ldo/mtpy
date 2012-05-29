@@ -17,9 +17,16 @@ mtp.LIBMTP_Get_Deviceversion.restype = ct.c_char_p
 mtp.LIBMTP_Get_Friendlyname.restype = ct.c_char_p
 mtp.LIBMTP_Get_Syncpartner.restype = ct.c_char_p
 mtp.LIBMTP_Get_Filetype_Description.restype = ct.c_char_p
+mtp.LIBMTP_destroy_file_t.restype = None
+mtp.LIBMTP_destroy_folder_t.restype = None
 libc = ct.cdll.LoadLibrary("libc.so.6")
 free = libc.free
 free.restype = None
+if ct.sizeof(ct.c_void_p) == 8 : # hopefully this will always be correct...
+    time_t = ct.c_int64
+else :
+    time_t = ct.c_int32
+#end if
 
 ERROR_NONE = 0
 ERROR_GENERAL = 1
@@ -305,7 +312,41 @@ mtpdevice_t._fields_ = \
         ("next", ct.POINTER(mtpdevice_t)), # Pointer to next device in linked list; NULL if this is the last device
     ]
 
+class file_t(ct.Structure) :
+    pass
+#end file_t
+file_t._fields_ = \
+    [
+        ("item_id", ct.c_uint32), # Unique item ID
+        ("parent_id", ct.c_uint32), # ID of parent folder
+        ("storage_id", ct.c_uint32), # ID of storage holding this file
+        ("name", ct.c_char_p), # Name of this file
+          # (libmtp.h uses "filename", I use "name" for consistency with folder_t)
+        ("filesize", ct.c_uint64), # Size of file in bytes
+        ("modificationdate", time_t), # Date of last alteration of the file
+        ("filetype", filetype_t), # Filetype used for the current file
+        ("next", ct.POINTER(file_t)), # Next file in list or NULL if last file
+    ]
+
+class folder_t(ct.Structure) :
+    pass
+#end folder_t
+folder_t._fields_ = \
+    [
+        ("item_id", ct.c_uint32), # Unique folder ID
+          # (libmtp.h uses "folder_id", I use "item_id" for consistency with file_t)
+        ("parent_id", ct.c_uint32), # ID of parent folder
+        ("storage_id", ct.c_uint32), # ID of storage holding this file
+        ("name", ct.c_char_p), # Name of folder
+        ("sibling", ct.POINTER(folder_t)), # Next folder at same level or NULL if no more
+        ("child", ct.POINTER(folder_t)), # Child folder or NULL if no children
+    ]
+
 mtp.LIBMTP_Open_Raw_Device.restype = ct.POINTER(mtpdevice_t)
+mtp.LIBMTP_Open_Raw_Device_Uncached.restype = ct.POINTER(mtpdevice_t)
+mtp.LIBMTP_Get_Files_And_Folders.restype = ct.POINTER(file_t)
+mtp.LIBMTP_Get_Filelisting.restype = ct.POINTER(file_t)
+mtp.LIBMTP_Get_Folder_List.restype = ct.POINTER(folder_t)
 
 class RawDevice() :
     """representation of an available MTP device, as returned by get_raw_devices."""
@@ -323,11 +364,29 @@ class RawDevice() :
         #end for
     #end __init__
 
-    def open(self) :
-        return Device(mtp.LIBMTP_Open_Raw_Device(ct.byref(self.device)))
+    def open(self, cached = True) :
+        return Device((mtp.LIBMTP_Open_Raw_Device_Uncached, mtp.LIBMTP_Open_Raw_Device)[cached](ct.byref(self.device)))
     #end open
 
 #end RawDevice
+
+def common_return_files_and_folders(items, device) :
+    result = []
+    while bool(items) :
+        initem = items.contents
+        is_folder = initem.filetype == FILETYPE_FOLDER
+        outitem = (File, Folder)[is_folder](initem, device)
+        result.append(outitem)
+        # mtp.LIBMTP_destroy_file_t(items) # causes crash
+        items = initem.next # even for folder!
+    #end while
+    return result
+#end common_return_files_and_folders
+
+def common_get_files_and_folders(device, storageid, root) :
+    return \
+        common_return_files_and_folders(mtp.LIBMTP_Get_Files_And_Folders(device, storageid, root), device)
+#end common_get_files_and_folders
 
 class Device() :
     """wraps an opened MTP device connection, as returned from RawDevice.open."""
@@ -458,7 +517,89 @@ class Device() :
         return result
     #end get_supported_filetypes
 
+    def get_files_and_folders(self, storageid) :
+        return common_get_files_and_folders(self.device, storageid, 0)
+    #end get_files_and_folders
+
+    def get_all_files(self) :
+        return \
+            common_return_files_and_folders(mtp.LIBMTP_Get_Filelisting(self.device), self.device)
+    #end get_all_files
+
+    def get_all_folders(self) :
+        items = mtp.LIBMTP_Get_Folder_List(self.device)
+        result = []
+        while bool(items) :
+            initem = items.contents
+            outitem = Folder(initem, self.device)
+            result.append(outitem)
+            # mtp.LIBMTP_destroy_folder_t(items) # causes heap corruption?
+            items = initem.sibling
+        #end while
+        return result
+    #end get_all_folders
+
 #end Device
+
+class File :
+
+    def __init__(self, f, device) :
+        # device ignored for compatibility with Folder constructor
+        for attr in ("item_id", "parent_id", "storage_id", "filesize", "modificationdate", "filetype") :
+            setattr(self, attr, getattr(f, attr))
+        #end for
+        for attr in ("name",) :
+            setattr(self, attr, getattr(f, attr).decode("utf-8"))
+        #end for
+    #end __init__
+
+    def toctype(self) :
+        return file_t \
+          (
+            item_id = self.item_id,
+            parent_id = self.parent_id,
+            storage_id = self.storage_id,
+            name = ct.c_char_p(self.name),
+            filesize = self.filesize,
+            modificationdate = self.modificationdate,
+            filetype = self.filetype,
+            next = ct.POINTER(file_t)()
+          )
+    #end toctype
+
+#end File
+
+class Folder :
+
+    def __init__(self, f, device) :
+        # f might be file_t or folder_t object
+        self.device = device
+        for attr in ("item_id", "parent_id", "storage_id") :
+            setattr(self, attr, getattr(f, attr))
+        #end for
+        self.filetype = FILETYPE_FOLDER
+        for attr in ("name",) :
+            setattr(self, attr, getattr(f, attr).decode("utf-8"))
+        #end for
+    #end __init__
+
+    def toctype(self) :
+        return folder_t \
+          (
+            item_id = self.item_id,
+            parent_id = self.parent_id,
+            storage_id = self.storage_id,
+            name = ct.c_char_p(self.name),
+            sibling = ct.POINTER(folder_t)(),
+            child = ct.POINTER(folder_t)()
+          )
+    #end toctype
+
+    def get_files_and_folders(self, storageid) :
+        return common_get_files_and_folders(self.device, storageid, self.item_id)
+    #end get_files_and_folders
+
+#end Folder
 
 def get_raw_devices() :
     """returns a list of all MTP devices detected on the system."""
