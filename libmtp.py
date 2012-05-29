@@ -385,7 +385,7 @@ def common_return_files_and_folders(items, device) :
 
 def common_get_files_and_folders(device, storageid, root) :
     return \
-        common_return_files_and_folders(mtp.LIBMTP_Get_Files_And_Folders(device, storageid, root), device)
+        common_return_files_and_folders(mtp.LIBMTP_Get_Files_And_Folders(device.device, storageid, root), device)
 #end common_get_files_and_folders
 
 class Device() :
@@ -517,13 +517,13 @@ class Device() :
         return result
     #end get_supported_filetypes
 
-    def get_files_and_folders(self, storageid) :
-        return common_get_files_and_folders(self.device, storageid, 0)
+    def get_files_and_folders(self, storageid = 0) :
+        return common_get_files_and_folders(self, storageid, 0)
     #end get_files_and_folders
 
     def get_all_files(self) :
         return \
-            common_return_files_and_folders(mtp.LIBMTP_Get_Filelisting(self.device), self.device)
+            common_return_files_and_folders(mtp.LIBMTP_Get_Filelisting(self.device), self)
     #end get_all_files
 
     def get_all_folders(self) :
@@ -531,7 +531,7 @@ class Device() :
         result = []
         while bool(items) :
             initem = items.contents
-            outitem = Folder(initem, self.device)
+            outitem = Folder(initem, self)
             result.append(outitem)
             # mtp.LIBMTP_destroy_folder_t(items) # causes heap corruption?
             items = initem.sibling
@@ -595,8 +595,19 @@ class Folder :
           )
     #end toctype
 
-    def get_files_and_folders(self, storageid) :
-        return common_get_files_and_folders(self.device, storageid, self.item_id)
+    def get_files_and_folders(self, storageid = None) :
+        if storageid != None :
+            # look on specified storage
+            storageids = (storageid,)
+        else :
+            # look on all available storage
+            storageids = tuple(s["id"] for s in self.device.storage)
+        #end if
+        result = []
+        for storageid in storageids :
+            result.extend(common_get_files_and_folders(self.device, storageid, self.item_id))
+        #end for
+        return result
     #end get_files_and_folders
 
 #end Folder
