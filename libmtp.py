@@ -353,6 +353,7 @@ mtp.LIBMTP_Open_Raw_Device_Uncached.restype = ct.POINTER(mtpdevice_t)
 mtp.LIBMTP_Get_Files_And_Folders.restype = ct.POINTER(file_t)
 mtp.LIBMTP_Get_Filelisting.restype = ct.POINTER(file_t)
 mtp.LIBMTP_Get_Folder_List.restype = ct.POINTER(folder_t)
+mtp.LIBMTP_new_file_t.restype = ct.POINTER(file_t)
 
 class RawDevice() :
     """representation of an available MTP device, as returned by get_raw_devices."""
@@ -460,6 +461,7 @@ class Device() :
         self.item_id = 0
         self.parent_id = 0
         self.got_descendants = False
+        self.update_seq = 1 # cache coherence check
         self.children_by_name = None
         self.descendants_by_id = None
     #end __init__
@@ -547,6 +549,15 @@ class Device() :
     def fullpath(self) :
         return "/" # I'm always root
     #end fullpath
+
+    def set_contents_changed(self) :
+        """Call this on any creation/deletion of files/folders, to force refetch
+        of all files/folders."""
+        self.got_descendants = 0
+        self.children_by_name = None
+        self.descendants_by_id = None
+        self.update_seq += 1
+    #def set_contents_changed
 
     def _cache_contents(self, contents) :
         if self.children_by_name == None :
@@ -668,6 +679,10 @@ class File :
         return "<File “%s”>" % self.fullpath()
     #end __repr__
 
+    def get_parent(self) :
+        return self.device.get_descendant_by_id(self.parent_id)
+    #end get_parent
+
     def retrieve_to_file(self, destname) :
         if os.path.isdir(destname) :
             destname = os.path.join(destname, self.name)
@@ -698,6 +713,7 @@ class Folder :
             setattr(self, attr, getattr(f, attr).decode("utf-8"))
         #end for
         self.children_by_name = None
+        self.update_seq = 0 # cache coherence check
     #end __init__
 
     def fullpath(self) :
@@ -709,15 +725,25 @@ class Folder :
     #end __repr__
 
     def _ensure_got_children(self) :
-        if self.children_by_name == None :
+        if self.children_by_name == None or self.update_seq != self.device.update_seq :
             self.device._ensure_got_descendants()
             self.children_by_name = dict \
               (
                 (item.name, item) for item in self.device.descendants_by_id.values()
                 if item.parent_id == self.item_id
               )
+            self.update_seq = self.device.update_seq
         #end if
     #end _ensure_got_children
+
+    def get_parent(self) :
+        return self.device.get_descendant_by_id(self.parent_id)
+    #end get_parent
+
+    def set_contents_changed(self) :
+        """Call this on any creation/deletion of file/folder contents."""
+        self.device.set_contents_changed()
+    #def set_contents_changed
 
     # higher-level access to device contents
 
@@ -769,6 +795,31 @@ class Folder :
             #end if
         #end for
     #end retrieve_to_folder
+
+    def send_file(self, src, destname = None) :
+        """sends the specified file to the device under the specified name within
+        this Folder, and returns a new File object for it. Note that other
+        File/Folder objects will be invalidated as a result."""
+        if destname == None :
+            destname = os.path.basename(src)
+        #end if
+        newfile = mtp.LIBMTP_new_file_t()
+        newfile.contents.filesize = os.stat(src).st_size
+        newfile.contents.name = ct.cast(libc.strdup(destname.encode("utf-8")), ct.c_char_p)
+        newfile.contents.parent_id = self.item_id
+        check_status(mtp.LIBMTP_Send_File_From_File
+          (
+            self.device.device,
+            src.encode("utf-8"),
+            newfile,
+            None, # progress
+            None # progress arg
+          ))
+        self.device.set_contents_changed()
+        result = self.device.get_descendant_by_id(newfile.contents.item_id)
+        mtp.LIBMTP_destroy_file_t(newfile)
+        return result
+    #end send_file
 
 #end Folder
 
