@@ -6,6 +6,7 @@
 
 import ctypes as ct
 import os
+import errno
 
 mtp = ct.cdll.LoadLibrary("libmtp.so")
 mtp.LIBMTP_Init()
@@ -741,6 +742,28 @@ class Folder :
         #end for
         return result
     #end get_files_and_folders
+
+    # end don't-use stuff
+
+    def retrieve_to_folder(self, dest) :
+        try :
+            # only create leaf dir on demand, rest must already exist
+            os.mkdir(dest)
+        except OSError as Err :
+            if Err.errno == errno.EXIST :
+                pass
+            else :
+                raise
+            #end if
+        #end try
+        for item in self.children_by_name.values() :
+            if isinstance(item, File) :
+                item.retrieve_to_file(os.path.join(dest, item.name))
+            elif isinstance(item, Folder) :
+                item.retrieve_to_folder(os.path.join(dest, item.name))
+            #end if
+        #end for
+    #end retrieve_to_folder
 
 #end Folder
 
