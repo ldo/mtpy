@@ -1,9 +1,11 @@
-import ctypes as ct
 #+
 # My ctypes-based interface to libmtp.
 #
 # Written by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 #-
+
+import ctypes as ct
+import os
 
 mtp = ct.cdll.LoadLibrary("libmtp.so")
 mtp.LIBMTP_Init()
@@ -659,6 +661,21 @@ class File :
     def __repr__(self) :
         return "<File “%s”>" % self.fullpath()
     #end __repr__
+
+    def retrieve_to_file(self, destname) :
+        if os.path.isdir(destname) :
+            destname = os.path.join(destname, self.name)
+        #end if
+        check_status(mtp.LIBMTP_Get_File_To_File
+          (
+            self.device.device,
+            self.item_id,
+            destname.encode("utf-8"),
+            None, # progress
+            None # progress arg
+          ))
+        os.utime(destname, 2 * (self.modificationdate,))
+    #end retrieve_to_file
 
 #end File
 
