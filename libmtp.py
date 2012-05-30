@@ -389,6 +389,29 @@ def common_get_files_and_folders(device, storageid, root) :
         common_return_files_and_folders(mtp.LIBMTP_Get_Files_And_Folders(device.device, storageid, root), device)
 #end common_get_files_and_folders
 
+def common_send_file(device, src, parentid, destname) :
+    newfile = mtp.LIBMTP_new_file_t()
+    newfile.contents.filesize = os.stat(src).st_size
+    newfile.contents.name = ct.cast(libc.strdup(destname.encode("utf-8")), ct.c_char_p)
+    newfile.contents.parent_id = parentid
+    check_status \
+      (
+        mtp.LIBMTP_Send_File_From_File
+          (
+            device.device,
+            src.encode("utf-8"),
+            newfile,
+            None, # progress
+            None # progress arg
+          ),
+        device.device
+      )
+    device.set_contents_changed()
+    result = device.get_descendant_by_id(newfile.contents.item_id)
+    mtp.LIBMTP_destroy_file_t(newfile)
+    return result
+#end common_send_file
+
 #+
 # User-visible high-level classes
 #-
@@ -688,6 +711,13 @@ class Device() :
 
     # end don't-use stuff
 
+    def send_file(self, src, destname) :
+        """sends the specified file to the device under the specified name
+        at the top level, and returns a new File object for it."""
+        # should I allow default destname here as well?
+        return common_send_file(self, src, 0, destname)
+    #end send_file
+
     def create_subfolder(self, name, storageid = 0) :
         """creates a folder with the specified name at the root level of the
         device, and returns a Folder object representing it."""
@@ -890,26 +920,7 @@ class Folder :
         if destname == None :
             destname = os.path.basename(src)
         #end if
-        newfile = mtp.LIBMTP_new_file_t()
-        newfile.contents.filesize = os.stat(src).st_size
-        newfile.contents.name = ct.cast(libc.strdup(destname.encode("utf-8")), ct.c_char_p)
-        newfile.contents.parent_id = self.item_id
-        check_status \
-          (
-            mtp.LIBMTP_Send_File_From_File
-              (
-                self.device.device,
-                src.encode("utf-8"),
-                newfile,
-                None, # progress
-                None # progress arg
-              ),
-            self.device.device
-          )
-        self.device.set_contents_changed()
-        result = self.device.get_descendant_by_id(newfile.contents.item_id)
-        mtp.LIBMTP_destroy_file_t(newfile)
-        return result
+        return common_send_file(self.device, src, self.item_id, destname)
     #end send_file
 
     def create_subfolder(self, name, storageid = 0) :
