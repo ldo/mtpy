@@ -439,6 +439,9 @@ class Device() :
               )
             ext = ext.next
         #end while
+        self.got_descendants = False
+        self.children_by_name = None
+        self.descendants_by_id = None
     #end __init__
 
     def close(self) :
@@ -517,6 +520,82 @@ class Device() :
         return result
     #end get_supported_filetypes
 
+    def _cache_contents(self, contents) :
+        if self.children_by_name == None :
+            self.children_by_name = {}
+        if self.descendants_by_id == None :
+            self.descendants_by_id = {}
+        #end if
+        for item in contents :
+            if item.parent_id == 0 :
+                self.children_by_name[item.name] = item
+            #end if
+            self.descendants_by_id[item.item_id] = item
+        #end for
+    #end _cache_contents
+
+    def _ensure_got_descendants(self) :
+        if not self.got_descendants :
+            self._cache_contents(self.get_files_and_folders(0))
+            self.got_descendants = True
+        #end if
+    #end _ensure_got_descendants
+
+    def _ensure_got_children(self) :
+        self._ensure_got_descendants()
+    #end _ensure_got_children
+
+    # higher-level access to device contents
+
+    def get_children(self) :
+        self._ensure_got_descendants()
+        return list(self.children_by_name.values())
+    #end get_children
+
+    def get_descendants(self) :
+        self._ensure_got_descendants()
+        return list(self.descendants_by_id.values())
+    #end get_descendants
+
+    def get_child_by_name(self, name) :
+        self._ensure_got_descendants()
+        return self.children_by_name.get(name)
+    #end get_child_by_name
+
+    def get_descendant_by_id(self, id) :
+        self._ensure_got_descendants()
+        return self.descendants_by_id.get(id)
+    #end get_descendant_by_id
+
+    def get_descendant_by_path(self, path) :
+        if path.startswith("/") :
+            path = path[1:]
+        #end if
+        if path.endswith("/") :
+            path = path[:-1]
+            # don't bother requiring that result must be a folder
+        #end if
+        item = self
+        if len(path) != 0 :
+            segments = iter(path.split("/"))
+        else :
+            segments = iter([])
+        #end if
+        while True :
+            item._ensure_got_children()
+            children = item.children_by_name
+            seg = next(segments, None)
+            if seg == None :
+                break
+            item = children.get(seg)
+            if item == None :
+                break
+        #end while
+        return item
+    #end get_descendant_by_path
+
+    # don't use following directly, use above higher-level methods instead
+
     def get_files_and_folders(self, storageid = 0) :
         return common_get_files_and_folders(self, storageid, 0)
     #end get_files_and_folders
@@ -567,7 +646,33 @@ class Folder :
         for attr in ("name",) :
             setattr(self, attr, getattr(f, attr).decode("utf-8"))
         #end for
+        self.children_by_name = None
     #end __init__
+
+    def _ensure_got_children(self) :
+        if self.children_by_name == None :
+            self.device._ensure_got_descendants()
+            self.children_by_name = dict \
+              (
+                (item.name, item) for item in self.device.descendants_by_id.values()
+                if item.parent_id == self.item_id
+              )
+        #end if
+    #end _ensure_got_children
+
+    # higher-level access to device contents
+
+    def get_children(self) :
+        self._ensure_got_children()
+        return list(self.children_by_name.values())
+    #end get_children
+
+    def get_child_by_name(self, name) :
+        self._ensure_got_children()
+        return self.children_by_name.get(name)
+    #end get_child_by_name
+
+    # don't use following directly, use above higher-level methods instead
 
     def get_files_and_folders(self, storageid = None) :
         if storageid != None :
