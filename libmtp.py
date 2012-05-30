@@ -553,20 +553,6 @@ class File :
         #end for
     #end __init__
 
-    def toctype(self) :
-        return file_t \
-          (
-            item_id = self.item_id,
-            parent_id = self.parent_id,
-            storage_id = self.storage_id,
-            name = ct.c_char_p(self.name),
-            filesize = self.filesize,
-            modificationdate = self.modificationdate,
-            filetype = self.filetype,
-            next = ct.POINTER(file_t)()
-          )
-    #end toctype
-
 #end File
 
 class Folder :
@@ -582,18 +568,6 @@ class Folder :
             setattr(self, attr, getattr(f, attr).decode("utf-8"))
         #end for
     #end __init__
-
-    def toctype(self) :
-        return folder_t \
-          (
-            item_id = self.item_id,
-            parent_id = self.parent_id,
-            storage_id = self.storage_id,
-            name = ct.c_char_p(self.name),
-            sibling = ct.POINTER(folder_t)(),
-            child = ct.POINTER(folder_t)()
-          )
-    #end toctype
 
     def get_files_and_folders(self, storageid = None) :
         if storageid != None :
