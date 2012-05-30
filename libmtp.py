@@ -365,8 +365,17 @@ class RawDevice() :
     #end __init__
 
     def open(self, cached = True) :
-        return Device((mtp.LIBMTP_Open_Raw_Device_Uncached, mtp.LIBMTP_Open_Raw_Device)[cached](ct.byref(self.device)))
+        return Device \
+          (
+            (mtp.LIBMTP_Open_Raw_Device_Uncached, mtp.LIBMTP_Open_Raw_Device)[cached]
+                (ct.byref(self.device)),
+            self
+          )
     #end open
+
+    def __repr__(self) :
+        return "<RawDevice “%s %s”>" % (self.vendor, self.product)
+    #end __repr__
 
 #end RawDevice
 
@@ -391,8 +400,10 @@ def common_get_files_and_folders(device, storageid, root) :
 class Device() :
     """wraps an opened MTP device connection, as returned from RawDevice.open."""
 
-    def __init__(self, device) :
+    def __init__(self, device, rawdev) :
         self.device = device
+        self.vendor = rawdev.vendor
+        self.product = rawdev.product
         check_status(mtp.LIBMTP_Get_Storage(device, STORAGE_SORTBY_NOTSORTED))
         for \
             k \
@@ -439,6 +450,8 @@ class Device() :
               )
             ext = ext.next
         #end while
+        self.item_id = 0
+        self.parent_id = 0
         self.got_descendants = False
         self.children_by_name = None
         self.descendants_by_id = None
@@ -449,6 +462,10 @@ class Device() :
         mtp.LIBMTP_Release_Device(self.device)
         del self.device
     #end close
+
+    def __repr__(self) :
+        return "<Device “%s %s”>" % (self.vendor, self.product)
+    #end __repr__
 
     def get_manufacturer_name(self) :
         return bytes(mtp.LIBMTP_Get_Manufacturername(self.device)).decode("utf-8")
@@ -520,11 +537,15 @@ class Device() :
         return result
     #end get_supported_filetypes
 
+    def fullpath(self) :
+        return "/" # I'm always root
+    #end fullpath
+
     def _cache_contents(self, contents) :
         if self.children_by_name == None :
             self.children_by_name = {}
         if self.descendants_by_id == None :
-            self.descendants_by_id = {}
+            self.descendants_by_id = {0 : self}
         #end if
         for item in contents :
             if item.parent_id == 0 :
@@ -569,7 +590,7 @@ class Device() :
 
     def get_descendant_by_path(self, path) :
         if path.startswith("/") :
-            path = path[1:]
+            path = path[1:] # don't care relative or absolute
         #end if
         if path.endswith("/") :
             path = path[:-1]
@@ -582,11 +603,11 @@ class Device() :
             segments = iter([])
         #end if
         while True :
-            item._ensure_got_children()
-            children = item.children_by_name
             seg = next(segments, None)
             if seg == None :
                 break
+            item._ensure_got_children()
+            children = item.children_by_name
             item = children.get(seg)
             if item == None :
                 break
@@ -623,7 +644,7 @@ class Device() :
 class File :
 
     def __init__(self, f, device) :
-        # device ignored for compatibility with Folder constructor
+        self.device = device
         for attr in ("item_id", "parent_id", "storage_id", "filesize", "modificationdate", "filetype") :
             setattr(self, attr, getattr(f, attr))
         #end for
@@ -631,6 +652,14 @@ class File :
             setattr(self, attr, getattr(f, attr).decode("utf-8"))
         #end for
     #end __init__
+
+    def fullpath(self) :
+        return "%s%s" % (self.device.get_descendant_by_id(self.parent_id).fullpath(), self.name)
+    #end fullpath
+
+    def __repr__(self) :
+        return "<File “%s”>" % self.fullpath()
+    #end __repr__
 
 #end File
 
@@ -648,6 +677,14 @@ class Folder :
         #end for
         self.children_by_name = None
     #end __init__
+
+    def fullpath(self) :
+        return "%s%s/" % (self.device.get_descendant_by_id(self.parent_id).fullpath(), self.name)
+    #end fullpath
+
+    def __repr__(self) :
+        return "<Folder “%s”>" % self.fullpath()
+    #end __repr__
 
     def _ensure_got_children(self) :
         if self.children_by_name == None :
