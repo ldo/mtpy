@@ -14,6 +14,11 @@
 # as appropriate: upload a file from the host, download a file to the
 # host, create a folder, and delete a file or folder.
 #
+# Not implemented: track, album, playlist and file-sample-data parts
+# of the API. The only MTP-speaking device I have is an Android phone
+# (Samsung Galaxy Nexus) which only uses MTP for file-transfer
+# purposes, not for its media-player functions.
+#
 # Written by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 #-
 
