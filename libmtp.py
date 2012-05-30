@@ -5,8 +5,6 @@ import ctypes as ct
 # Written by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 #-
 
-import sys # debug
-
 mtp = ct.cdll.LoadLibrary("libmtp.so")
 mtp.LIBMTP_Init()
 mtp.LIBMTP_Release_Device.restype = None
@@ -364,7 +362,8 @@ class RawDevice() :
         #end for
     #end __init__
 
-    def open(self, cached = True) :
+    def open(self) :
+        cached = False # Get_Files_And_Folders won't work otherwise
         return Device \
           (
             (mtp.LIBMTP_Open_Raw_Device_Uncached, mtp.LIBMTP_Open_Raw_Device)[cached]
