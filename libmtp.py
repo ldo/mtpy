@@ -16,6 +16,8 @@ import errno
 mtp = ct.cdll.LoadLibrary("libmtp.so")
 mtp.LIBMTP_Init()
 mtp.LIBMTP_Release_Device.restype = None
+mtp.LIBMTP_Clear_Errorstack.restype = None
+mtp.LIBMTP_Dump_Errorstack.restype = None
 mtp.LIBMTP_Get_Manufacturername.restype = ct.c_char_p
 mtp.LIBMTP_Get_Modelname.restype = ct.c_char_p
 mtp.LIBMTP_Get_Serialnumber.restype = ct.c_char_p
@@ -65,8 +67,12 @@ class Error(RuntimeError) :
 
 #end Error
 
-def check_status(status) :
+def check_status(status, device = None) :
     if status != ERROR_NONE :
+        if device != None :
+            mtp.LIBMTP_Dump_Errorstack(device)
+            mtp.LIBMTP_Clear_Errorstack(device)
+        #end if
         raise Error(status)
     #end if
 #end check_status
@@ -412,7 +418,7 @@ class Device() :
         self.device = device
         self.vendor = rawdev.vendor
         self.product = rawdev.product
-        check_status(mtp.LIBMTP_Get_Storage(device, STORAGE_SORTBY_NOTSORTED))
+        check_status(mtp.LIBMTP_Get_Storage(device, STORAGE_SORTBY_NOTSORTED), device)
         for \
             k \
         in \
@@ -497,7 +503,7 @@ class Device() :
     #end get_friendly_name
 
     def set_friendly_name(self, new_name) :
-        check_status(mtp.LIBMTP_Set_Friendlyname(self.device, new_name.encode("utf-8")))
+        check_status(mtp.LIBMTP_Set_Friendlyname(self.device, new_name.encode("utf-8")), self.device)
     #end set_friendly_name
 
     def get_sync_parner(self) :
@@ -505,7 +511,7 @@ class Device() :
     #end get_sync_parner
 
     def set_sync_partner(self, new_name) :
-        check_status(mtp.LIBMTP_Set_Syncpartner(self.device, new_name.encode("utf-8")))
+        check_status(mtp.LIBMTP_Set_Syncpartner(self.device, new_name.encode("utf-8")), self.device)
     #end set_sync_partner
 
     def get_battery_level(self) :
@@ -513,26 +519,26 @@ class Device() :
         # example and clear device error stack without failing.
         maxlevel = ct.c_int(0)
         curlevel = ct.c_int(0)
-        check_status(mtp.LIBMTP_Get_Batterylevel(self.device, ct.byref(maxlevel), ct.byref(curlevel)))
+        check_status(mtp.LIBMTP_Get_Batterylevel(self.device, ct.byref(maxlevel), ct.byref(curlevel)), self.device)
         return maxlevel.value, curlevel.value
     #end get_battery_level
 
     def get_secure_time(self) :
         result = ct.c_char_p()
-        check_status(mtp.LIBMTP_Get_Secure_Time(self.device, ct.byref(result)))
+        check_status(mtp.LIBMTP_Get_Secure_Time(self.device, ct.byref(result)), self.device)
         return bytes(result)
     #end get_secure_time
 
     def get_device_certificate(self) :
         result = ct.c_char_p()
-        check_status(mtp.LIBMTP_Get_Device_Certificate(self.device, ct.byref(result)))
+        check_status(mtp.LIBMTP_Get_Device_Certificate(self.device, ct.byref(result)), self.device)
         return bytes(result)
     #end get_device_certificate
 
     def get_supported_filetypes(self) :
         types = ct.POINTER(ct.c_uint16)()
         nrtypes = ct.c_uint16(0)
-        check_status(mtp.LIBMTP_Get_Supported_Filetypes(self.device, ct.byref(types), ct.byref(nrtypes)))
+        check_status(mtp.LIBMTP_Get_Supported_Filetypes(self.device, ct.byref(types), ct.byref(nrtypes)), self.device)
         result = []
         for i in range(0, nrtypes.value) :
             result.append \
@@ -687,14 +693,18 @@ class File :
         if os.path.isdir(destname) :
             destname = os.path.join(destname, self.name)
         #end if
-        check_status(mtp.LIBMTP_Get_File_To_File
+        check_status \
           (
-            self.device.device,
-            self.item_id,
-            destname.encode("utf-8"),
-            None, # progress
-            None # progress arg
-          ))
+            mtp.LIBMTP_Get_File_To_File
+              (
+                self.device.device,
+                self.item_id,
+                destname.encode("utf-8"),
+                None, # progress
+                None # progress arg
+              ),
+            self.device.device
+          )
         os.utime(destname, 2 * (self.modificationdate,))
     #end retrieve_to_file
 
@@ -807,14 +817,18 @@ class Folder :
         newfile.contents.filesize = os.stat(src).st_size
         newfile.contents.name = ct.cast(libc.strdup(destname.encode("utf-8")), ct.c_char_p)
         newfile.contents.parent_id = self.item_id
-        check_status(mtp.LIBMTP_Send_File_From_File
+        check_status \
           (
-            self.device.device,
-            src.encode("utf-8"),
-            newfile,
-            None, # progress
-            None # progress arg
-          ))
+            mtp.LIBMTP_Send_File_From_File
+              (
+                self.device.device,
+                src.encode("utf-8"),
+                newfile,
+                None, # progress
+                None # progress arg
+              ),
+            self.device.device
+          )
         self.device.set_contents_changed()
         result = self.device.get_descendant_by_id(newfile.contents.item_id)
         mtp.LIBMTP_destroy_file_t(newfile)
