@@ -6,6 +6,14 @@
 # License as published by the Free Software Foundation; either
 # version 2 of the License, or (at your option) any later version.
 #
+# Overview: use get_raw_devices() to get a list of RawDevice objects
+# representing MTP-speaking devices connected to your host system.
+# Use the open() method on any of these to obtain a Device object.
+# This has methods to look up File and Folder objects for its contents,
+# and all of these also have methods for various manipulations
+# as appropriate: upload a file from the host, download a file to the
+# host, create a folder, and delete a file or folder.
+#
 # Written by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 #-
 
@@ -944,7 +952,8 @@ class Folder :
 
     def delete(self, delete_contents = False) :
         """deletes the folder on the device. You must not make any further use
-        of this Folder object after this call."""
+        of this Folder object (or any of its descendant File or Folder objects)
+        after this call."""
         children = self.get_children()
         if len(children) != 0 and not delete_contents :
             raise RuntimeError("folder is not empty")
