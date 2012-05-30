@@ -27,6 +27,7 @@ mtp.LIBMTP_Get_Syncpartner.restype = ct.c_char_p
 mtp.LIBMTP_Get_Filetype_Description.restype = ct.c_char_p
 mtp.LIBMTP_destroy_file_t.restype = None
 mtp.LIBMTP_destroy_folder_t.restype = None
+mtp.LIBMTP_Create_Folder.restype = ct.c_uint32
 libc = ct.cdll.LoadLibrary("libc.so.6")
 free = libc.free
 free.restype = None
@@ -663,6 +664,25 @@ class Device() :
         return result
     #end get_all_folders
 
+    # end don't-use stuff
+
+    def create_subfolder(self, name, storageid = 0) :
+        folderid = mtp.LIBMTP_Create_Folder \
+          (
+            self.device,
+            name.encode("utf-8"),
+            0,
+            storageid
+          )
+        if folderid == 0 :
+            mtp.LIBMTP_Dump_Errorstack(self.device)
+            mtp.LIBMTP_Clear_Errorstack(self.device)
+            raise Error(ERROR_GENERAL)
+        #end if
+        self.set_contents_changed()
+        return self.get_descendant_by_id(folderid)
+    #end create_subfolder
+
 #end Device
 
 class File :
@@ -707,6 +727,23 @@ class File :
           )
         os.utime(destname, 2 * (self.modificationdate,))
     #end retrieve_to_file
+
+    def delete(self, delete_contents = False) :
+        # delete_contents ignored, allowed for compatibility with Folder.delete
+        check_status \
+          (
+            mtp.LIBMTP_Delete_Object
+              (
+                self.device.device,
+                self.item_id
+              ),
+            self.device.device
+          )
+        self.device.set_contents_changed()
+        # make myself unusable:
+        del self.name
+        del self.item_id
+    #end delete
 
 #end File
 
@@ -834,6 +871,49 @@ class Folder :
         mtp.LIBMTP_destroy_file_t(newfile)
         return result
     #end send_file
+
+    def create_subfolder(self, name, storageid = 0) :
+        folderid = mtp.LIBMTP_Create_Folder \
+          (
+            self.device.device,
+            name.encode("utf-8"),
+            self.item_id,
+            storageid
+          )
+        if folderid == 0 :
+            mtp.LIBMTP_Dump_Errorstack(self.device.device)
+            mtp.LIBMTP_Clear_Errorstack(self.device.device)
+            raise Error(ERROR_GENERAL)
+        #end if
+        self.device.set_contents_changed()
+        return self.device.get_descendant_by_id(folderid)
+    #end create_subfolder
+
+    def delete(self, delete_contents = False) :
+        children = self.get_children()
+        if len(children) != 0 and not delete_contents :
+            raise RuntimeError("folder is not empty")
+        #end if
+        if delete_contents :
+            for child in children :
+                child.delete(delete_contents)
+            #end for
+        #end if
+        check_status \
+          (
+            mtp.LIBMTP_Delete_Object
+              (
+                self.device.device,
+                self.item_id
+              ),
+            self.device.device
+          )
+        self.set_contents_changed()
+        # make myself unusable:
+        del self.name
+        del self.item_id
+        del self.children_by_name
+    #end delete
 
 #end Folder
 
