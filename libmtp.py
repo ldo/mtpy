@@ -245,6 +245,11 @@ def FILETYPE_IS_CALENDAR(a) :
         )
 #end FILETYPE_IS_CALENDAR
 
+#+
+# Internal low-level structs
+# (if in doubt, stay away from these)
+#-
+
 class device_entry_t(ct.Structure) :
     _fields_ = \
         [
@@ -362,6 +367,32 @@ mtp.LIBMTP_Get_Filelisting.restype = ct.POINTER(file_t)
 mtp.LIBMTP_Get_Folder_List.restype = ct.POINTER(folder_t)
 mtp.LIBMTP_new_file_t.restype = ct.POINTER(file_t)
 
+#+
+# Internal useful stuff
+#-
+
+def common_return_files_and_folders(items, device) :
+    result = []
+    while bool(items) :
+        initem = items.contents
+        is_folder = initem.filetype == FILETYPE_FOLDER
+        outitem = (File, Folder)[is_folder](initem, device)
+        result.append(outitem)
+        # mtp.LIBMTP_destroy_file_t(items) # causes crash
+        items = initem.next # even for folder!
+    #end while
+    return result
+#end common_return_files_and_folders
+
+def common_get_files_and_folders(device, storageid, root) :
+    return \
+        common_return_files_and_folders(mtp.LIBMTP_Get_Files_And_Folders(device.device, storageid, root), device)
+#end common_get_files_and_folders
+
+#+
+# User-visible high-level classes
+#-
+
 class RawDevice() :
     """representation of an available MTP device, as returned by get_raw_devices."""
 
@@ -393,24 +424,6 @@ class RawDevice() :
     #end __repr__
 
 #end RawDevice
-
-def common_return_files_and_folders(items, device) :
-    result = []
-    while bool(items) :
-        initem = items.contents
-        is_folder = initem.filetype == FILETYPE_FOLDER
-        outitem = (File, Folder)[is_folder](initem, device)
-        result.append(outitem)
-        # mtp.LIBMTP_destroy_file_t(items) # causes crash
-        items = initem.next # even for folder!
-    #end while
-    return result
-#end common_return_files_and_folders
-
-def common_get_files_and_folders(device, storageid, root) :
-    return \
-        common_return_files_and_folders(mtp.LIBMTP_Get_Files_And_Folders(device.device, storageid, root), device)
-#end common_get_files_and_folders
 
 class Device() :
     """wraps an opened MTP device connection, as returned from RawDevice.open."""
@@ -554,6 +567,7 @@ class Device() :
     #end get_supported_filetypes
 
     def fullpath(self) :
+        """returns the fully-qualified pathname of the root directory."""
         return "/" # I'm always root
     #end fullpath
 
@@ -594,26 +608,34 @@ class Device() :
     # higher-level access to device contents
 
     def get_children(self) :
+        """returns all the files and folders at the root level of the device."""
         self._ensure_got_descendants()
         return list(self.children_by_name.values())
     #end get_children
 
     def get_descendants(self) :
+        """returns all the files and folders on the device."""
         self._ensure_got_descendants()
         return list(self.descendants_by_id.values())
     #end get_descendants
 
     def get_child_by_name(self, name) :
+        """returns a named file or folder at the root level of the device, or None
+        if not found."""
         self._ensure_got_descendants()
         return self.children_by_name.get(name)
     #end get_child_by_name
 
     def get_descendant_by_id(self, id) :
+        """returns a file or folder on the device identified by device-wide ID,
+        or None if not found."""
         self._ensure_got_descendants()
         return self.descendants_by_id.get(id)
     #end get_descendant_by_id
 
     def get_descendant_by_path(self, path) :
+        """returns a file or folder corresponding to the specified path spec
+        in usual *nix form, or None if not found."""
         if path.startswith("/") :
             path = path[1:] # don't care relative or absolute
         #end if
@@ -667,6 +689,8 @@ class Device() :
     # end don't-use stuff
 
     def create_subfolder(self, name, storageid = 0) :
+        """creates a folder with the specified name at the root level of the
+        device, and returns a Folder object representing it."""
         folderid = mtp.LIBMTP_Create_Folder \
           (
             self.device,
@@ -686,6 +710,8 @@ class Device() :
 #end Device
 
 class File :
+    """representation of a file on the device. Don't create these objects yourself,
+    always get them from lookup or creation methods."""
 
     def __init__(self, f, device) :
         self.device = device
@@ -698,6 +724,7 @@ class File :
     #end __init__
 
     def fullpath(self) :
+        """returns the fully-qualified pathname of the file."""
         return "%s%s" % (self.device.get_descendant_by_id(self.parent_id).fullpath(), self.name)
     #end fullpath
 
@@ -706,10 +733,13 @@ class File :
     #end __repr__
 
     def get_parent(self) :
+        """returns the immediately-containing parent Folder or Device object."""
         return self.device.get_descendant_by_id(self.parent_id)
     #end get_parent
 
     def retrieve_to_file(self, destname) :
+        """copies the contents of the file to the host filesystem under the
+        specified name."""
         if os.path.isdir(destname) :
             destname = os.path.join(destname, self.name)
         #end if
@@ -729,6 +759,8 @@ class File :
     #end retrieve_to_file
 
     def delete(self, delete_contents = False) :
+        """deletes the file on the device. You must not make any further use
+        of this File object after this call."""
         # delete_contents ignored, allowed for compatibility with Folder.delete
         check_status \
           (
@@ -748,6 +780,8 @@ class File :
 #end File
 
 class Folder :
+    """representation of a folder on the device. Don't create these objects yourself,
+    always get them from lookup or creation methods."""
 
     def __init__(self, f, device) :
         # f might be file_t or folder_t object
@@ -764,6 +798,7 @@ class Folder :
     #end __init__
 
     def fullpath(self) :
+        """returns the fully-qualified pathname of the folder."""
         return "%s%s/" % (self.device.get_descendant_by_id(self.parent_id).fullpath(), self.name)
     #end fullpath
 
@@ -784,6 +819,7 @@ class Folder :
     #end _ensure_got_children
 
     def get_parent(self) :
+        """returns the immediately-containing parent Folder or Device."""
         return self.device.get_descendant_by_id(self.parent_id)
     #end get_parent
 
@@ -795,11 +831,14 @@ class Folder :
     # higher-level access to device contents
 
     def get_children(self) :
+        """returns all the immediate child files and folders of this folder."""
         self._ensure_got_children()
         return list(self.children_by_name.values())
     #end get_children
 
     def get_child_by_name(self, name) :
+        """returns the immediate child file/folder with the specified name,
+        or None if not found."""
         self._ensure_got_children()
         return self.children_by_name.get(name)
     #end get_child_by_name
@@ -824,6 +863,8 @@ class Folder :
     # end don't-use stuff
 
     def retrieve_to_folder(self, dest) :
+        """retrieves the entire contents of this Folder (and recursively of all
+        its subfolders) into the specified destination directory on the host filesystem."""
         try :
             # only create leaf dir on demand, rest must already exist
             os.mkdir(dest)
@@ -845,8 +886,7 @@ class Folder :
 
     def send_file(self, src, destname = None) :
         """sends the specified file to the device under the specified name within
-        this Folder, and returns a new File object for it. Note that other
-        File/Folder objects will be invalidated as a result."""
+        this Folder, and returns a new File object for it."""
         if destname == None :
             destname = os.path.basename(src)
         #end if
@@ -873,6 +913,8 @@ class Folder :
     #end send_file
 
     def create_subfolder(self, name, storageid = 0) :
+        """creates a folder with the specified name at the top level of this
+        Folder, and returns a Folder object representing it."""
         folderid = mtp.LIBMTP_Create_Folder \
           (
             self.device.device,
@@ -890,6 +932,8 @@ class Folder :
     #end create_subfolder
 
     def delete(self, delete_contents = False) :
+        """deletes the folder on the device. You must not make any further use
+        of this Folder object after this call."""
         children = self.get_children()
         if len(children) != 0 and not delete_contents :
             raise RuntimeError("folder is not empty")
