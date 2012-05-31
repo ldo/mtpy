@@ -1,6 +1,5 @@
-mtpy provides access to (some of) the functions of libmtp from
-Python. It tries to do this in a high-level, convenient
-fashion. Examples:
+mtpy provides access to (some of) the functions of libmtp from Python
+3.x. It tries to do this in a high-level, convenient fashion. Examples:
 
     import mtpy
     mtpy.get_raw_devices()
