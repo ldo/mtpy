@@ -42,8 +42,10 @@ mtp.LIBMTP_destroy_file_t.restype = None
 mtp.LIBMTP_destroy_folder_t.restype = None
 mtp.LIBMTP_Create_Folder.restype = ct.c_uint32
 libc = ct.cdll.LoadLibrary("libc.so.6")
-free = libc.free
-free.restype = None
+libc.free.argtypes = [ct.c_void_p]
+libc.free.restype = None
+libc.strdup.restype = ct.c_void_p
+  # cannot use ct.c_char_p because ctypes insists on converting it to a bytes object
 if ct.sizeof(ct.c_void_p) == 8 : # hopefully this will always be correct...
     time_t = ct.c_int64
 else :
@@ -406,7 +408,7 @@ def common_get_files_and_folders(device, storageid, root) :
 def common_send_file(device, src, parentid, destname) :
     newfile = mtp.LIBMTP_new_file_t()
     newfile.contents.filesize = os.stat(src).st_size
-    newfile.contents.name = ct.cast(libc.strdup(destname.encode("utf-8")), ct.c_char_p)
+    newfile.contents.name = libc.strdup(destname.encode("utf-8"))
     newfile.contents.parent_id = parentid
     check_status \
       (
@@ -840,11 +842,11 @@ class File :
               (
                 self.device.device,
                 item,
-                ct.cast(c_newname, ct.c_char_p)
+                c_newname
               )
           )
         mtp.LIBMTP_destroy_file_t(item)
-        free(c_newname)
+        libc.free(c_newname)
         self.name = newname
         self.device.set_contents_changed()
     #end set_name
@@ -997,11 +999,11 @@ class Folder :
               (
                 self.device.device,
                 item,
-                ct.cast(c_newname, ct.c_char_p)
+                c_newname
               )
           )
         mtp.LIBMTP_destroy_folder_t(item)
-        free(c_newname)
+        libc.free(c_newname)
         self.name = newname
         self.device.set_contents_changed()
     #end set_name
@@ -1046,6 +1048,6 @@ def get_raw_devices() :
     for i in range(0, nr_devices.value) :
         result.append(RawDevice(devices[i]))
     #end for
-    free(devices)
+    libc.free(devices)
     return result
 #end get_raw_devices
