@@ -758,7 +758,7 @@ class Device() :
         common_retrieve_to_folder(self, dest)
     #end retrieve_to_folder
 
-    def create_subfolder(self, name, storageid = 0) :
+    def create_folder(self, name, storageid = 0) :
         """creates a folder with the specified name at the root level of the
         device, and returns a Folder object representing it."""
         folderid = mtp.LIBMTP_Create_Folder \
@@ -775,7 +775,7 @@ class Device() :
         #end if
         self.set_contents_changed()
         return self.get_descendant_by_id(folderid)
-    #end create_subfolder
+    #end create_folder
 
 #end Device
 
@@ -966,7 +966,7 @@ class Folder :
         return common_send_file(self.device, src, self.item_id, destname)
     #end send_file
 
-    def create_subfolder(self, name, storageid = 0) :
+    def create_folder(self, name, storageid = 0) :
         """creates a folder with the specified name at the top level of this
         Folder, and returns a Folder object representing it."""
         folderid = mtp.LIBMTP_Create_Folder \
@@ -983,7 +983,7 @@ class Folder :
         #end if
         self.device.set_contents_changed()
         return self.device.get_descendant_by_id(folderid)
-    #end create_subfolder
+    #end create_folder
 
     def set_name(self, newname) :
         """changes the name of the folder."""
