@@ -379,6 +379,7 @@ mtp.LIBMTP_Get_Files_And_Folders.restype = ct.POINTER(file_t)
 mtp.LIBMTP_Get_Filelisting.restype = ct.POINTER(file_t)
 mtp.LIBMTP_Get_Folder_List.restype = ct.POINTER(folder_t)
 mtp.LIBMTP_new_file_t.restype = ct.POINTER(file_t)
+mtp.LIBMTP_new_folder_t.restype = ct.POINTER(folder_t)
 
 #+
 # Internal useful stuff
@@ -827,6 +828,27 @@ class File :
         os.utime(destname, 2 * (self.modificationdate,))
     #end retrieve_to_file
 
+    def set_name(self, newname) :
+        """changes the name of the file."""
+        item = mtp.LIBMTP_new_file_t()
+        item.contents.item_id = self.item_id
+        item.contents.parent_id = self.parent_id
+        c_newname = libc.strdup(newname.encode("utf-8"))
+        check_status \
+          (
+            mtp.LIBMTP_Set_File_Name
+              (
+                self.device.device,
+                item,
+                ct.cast(c_newname, ct.c_char_p)
+              )
+          )
+        mtp.LIBMTP_destroy_file_t(item)
+        free(c_newname)
+        self.name = newname
+        self.device.set_contents_changed()
+    #end set_name
+
     def delete(self, delete_contents = False) :
         """deletes the file on the device. You must not make any further use
         of this File object after this call."""
@@ -962,6 +984,27 @@ class Folder :
         self.device.set_contents_changed()
         return self.device.get_descendant_by_id(folderid)
     #end create_subfolder
+
+    def set_name(self, newname) :
+        """changes the name of the folder."""
+        item = mtp.LIBMTP_new_folder_t()
+        item.contents.item_id = self.item_id
+        item.contents.parent_id = self.parent_id
+        c_newname = libc.strdup(newname.encode("utf-8"))
+        check_status \
+          (
+            mtp.LIBMTP_Set_Folder_Name
+              (
+                self.device.device,
+                item,
+                ct.cast(c_newname, ct.c_char_p)
+              )
+          )
+        mtp.LIBMTP_destroy_folder_t(item)
+        free(c_newname)
+        self.name = newname
+        self.device.set_contents_changed()
+    #end set_name
 
     def delete(self, delete_contents = False) :
         """deletes the folder on the device. You must not make any further use
