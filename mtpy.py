@@ -425,6 +425,28 @@ def common_send_file(device, src, parentid, destname) :
     return result
 #end common_send_file
 
+def common_retrieve_to_folder(self, dest) :
+    """retrieves the entire contents of this Device/Folder (and recursively of all
+    its subfolders) into the specified destination directory on the host filesystem."""
+    try :
+        # only create leaf dir on demand, rest must already exist
+        os.mkdir(dest)
+    except OSError as Err :
+        if Err.errno == errno.EEXIST :
+            pass
+        else :
+            raise
+        #end if
+    #end try
+    for item in self.get_children() :
+        if isinstance(item, File) :
+            item.retrieve_to_file(os.path.join(dest, item.name))
+        elif isinstance(item, Folder) :
+            item.retrieve_to_folder(os.path.join(dest, item.name))
+        #end if
+    #end for
+#end common_retrieve_to_folder
+
 #+
 # User-visible high-level classes
 #-
@@ -731,6 +753,10 @@ class Device() :
         return common_send_file(self, src, 0, destname)
     #end send_file
 
+    def retrieve_to_folder(self, dest) :
+        common_retrieve_to_folder(self, dest)
+    #end retrieve_to_folder
+
     def create_subfolder(self, name, storageid = 0) :
         """creates a folder with the specified name at the root level of the
         device, and returns a Folder object representing it."""
@@ -906,25 +932,7 @@ class Folder :
     # end don't-use stuff
 
     def retrieve_to_folder(self, dest) :
-        """retrieves the entire contents of this Folder (and recursively of all
-        its subfolders) into the specified destination directory on the host filesystem."""
-        try :
-            # only create leaf dir on demand, rest must already exist
-            os.mkdir(dest)
-        except OSError as Err :
-            if Err.errno == errno.EXIST :
-                pass
-            else :
-                raise
-            #end if
-        #end try
-        for item in self.children_by_name.values() :
-            if isinstance(item, File) :
-                item.retrieve_to_file(os.path.join(dest, item.name))
-            elif isinstance(item, Folder) :
-                item.retrieve_to_folder(os.path.join(dest, item.name))
-            #end if
-        #end for
+        common_retrieve_to_folder(self, dest)
     #end retrieve_to_folder
 
     def send_file(self, src, destname = None) :
