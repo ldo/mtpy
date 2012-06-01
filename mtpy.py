@@ -867,10 +867,10 @@ class File :
         self.device.set_contents_changed()
     #end set_name
 
-    def delete(self, delete_contents = False) :
+    def delete(self, delete_descendants = False) :
         """deletes the file on the device. You must not make any further use
         of this File object after this call."""
-        # delete_contents ignored, allowed for compatibility with Folder.delete
+        # delete_descendants ignored, allowed for compatibility with Folder.delete
         check_status \
           (
             mtp.LIBMTP_Delete_Object
@@ -1022,17 +1022,17 @@ class Folder :
         self.device.set_contents_changed()
     #end set_name
 
-    def delete(self, delete_contents = False) :
+    def delete(self, delete_descendants = False) :
         """deletes the folder on the device. You must not make any further use
         of this Folder object (or any of its descendant File or Folder objects)
         after this call."""
         children = self.get_children()
-        if len(children) != 0 and not delete_contents :
+        if len(children) != 0 and not delete_descendants :
             raise RuntimeError("folder is not empty")
         #end if
-        if delete_contents :
+        if delete_descendants :
             for child in children :
-                child.delete(delete_contents)
+                child.delete(delete_descendants)
             #end for
         #end if
         check_status \

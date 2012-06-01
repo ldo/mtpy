@@ -65,9 +65,9 @@ be referenced after this point.
 will fail, because the folder “test” is not empty (contains the
 subfolder “also_test”).
 
-    d1.delete(delete_contents = True)
+    d1.delete(delete_descendants = True)
 
-will delete the folder “test” and all its contents (i.e. the Folder
+will delete the folder “test” and all its descendants (i.e. the Folder
 described by d2). The objects in d1 and d2 should not be referenced
 after this point.
 
@@ -76,4 +76,4 @@ after this point.
 closes the connection to the Device when you have finished with it.
 
 Lawrence D’Oliveiro
-2012 May 31
+2012 June 1
