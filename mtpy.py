@@ -835,18 +835,16 @@ class File :
         item = mtp.LIBMTP_new_file_t()
         item.contents.item_id = self.item_id
         item.contents.parent_id = self.parent_id
-        c_newname = libc.strdup(newname.encode("utf-8"))
         check_status \
           (
             mtp.LIBMTP_Set_File_Name
               (
                 self.device.device,
                 item,
-                c_newname
+                newname.encode("utf-8")
               )
           )
         mtp.LIBMTP_destroy_file_t(item)
-        libc.free(c_newname)
         self.name = newname
         self.device.set_contents_changed()
     #end set_name
@@ -992,18 +990,16 @@ class Folder :
         item = mtp.LIBMTP_new_folder_t()
         item.contents.item_id = self.item_id
         item.contents.parent_id = self.parent_id
-        c_newname = libc.strdup(newname.encode("utf-8"))
         check_status \
           (
             mtp.LIBMTP_Set_Folder_Name
               (
                 self.device.device,
                 item,
-                c_newname
+                newname.encode("utf-8")
               )
           )
         mtp.LIBMTP_destroy_folder_t(item)
-        libc.free(c_newname)
         self.name = newname
         self.device.set_contents_changed()
     #end set_name
