@@ -387,6 +387,24 @@ mtp.LIBMTP_new_folder_t.restype = ct.POINTER(folder_t)
 # Internal useful stuff
 #-
 
+class LeakProtect :
+    # try to guard against memory leaks.
+
+    def __init__(self, obj, free) :
+        self.obj = obj
+        self.free = free
+    #end __init__
+
+    def __enter__(self) :
+        return self.obj
+    #end __enter__
+
+    def __exit__(self, exception_type, exception_value, traceback) :
+        self.free(self.obj)
+    #end __exit__
+
+#end LeakProtect
+
 def common_return_files_and_folders(items, device) :
     result = []
     while bool(items) :
@@ -406,25 +424,25 @@ def common_get_files_and_folders(device, storageid, root) :
 #end common_get_files_and_folders
 
 def common_send_file(device, src, parentid, destname) :
-    newfile = mtp.LIBMTP_new_file_t()
-    newfile.contents.filesize = os.stat(src).st_size
-    newfile.contents.name = libc.strdup(destname.encode("utf-8"))
-    newfile.contents.parent_id = parentid
-    check_status \
-      (
-        mtp.LIBMTP_Send_File_From_File
+    with LeakProtect(mtp.LIBMTP_new_file_t(), mtp.LIBMTP_destroy_file_t) as newfile :
+        newfile.contents.filesize = os.stat(src).st_size
+        newfile.contents.name = libc.strdup(destname.encode("utf-8"))
+        newfile.contents.parent_id = parentid
+        check_status \
           (
-            device.device,
-            src.encode("utf-8"),
-            newfile,
-            None, # progress
-            None # progress arg
-          ),
-        device.device
-      )
-    device.set_contents_changed()
-    result = device.get_descendant_by_id(newfile.contents.item_id)
-    mtp.LIBMTP_destroy_file_t(newfile)
+            mtp.LIBMTP_Send_File_From_File
+              (
+                device.device,
+                src.encode("utf-8"),
+                newfile,
+                None, # progress
+                None # progress arg
+              ),
+            device.device
+          )
+        device.set_contents_changed()
+        result = device.get_descendant_by_id(newfile.contents.item_id)
+    #end with
     return result
 #end common_send_file
 
@@ -832,19 +850,19 @@ class File :
 
     def set_name(self, newname) :
         """changes the name of the file."""
-        item = mtp.LIBMTP_new_file_t()
-        item.contents.item_id = self.item_id
-        item.contents.parent_id = self.parent_id
-        check_status \
-          (
-            mtp.LIBMTP_Set_File_Name
+        with LeakProtect(mtp.LIBMTP_new_file_t(), mtp.LIBMTP_destroy_file_t) as item :
+            item.contents.item_id = self.item_id
+            item.contents.parent_id = self.parent_id
+            check_status \
               (
-                self.device.device,
-                item,
-                newname.encode("utf-8")
+                mtp.LIBMTP_Set_File_Name
+                  (
+                    self.device.device,
+                    item,
+                    newname.encode("utf-8")
+                  )
               )
-          )
-        mtp.LIBMTP_destroy_file_t(item)
+        #end with
         self.name = newname
         self.device.set_contents_changed()
     #end set_name
@@ -987,19 +1005,19 @@ class Folder :
 
     def set_name(self, newname) :
         """changes the name of the folder."""
-        item = mtp.LIBMTP_new_folder_t()
-        item.contents.item_id = self.item_id
-        item.contents.parent_id = self.parent_id
-        check_status \
-          (
-            mtp.LIBMTP_Set_Folder_Name
+        with LeakProtect(mtp.LIBMTP_new_folder_t(), mtp.LIBMTP_destroy_folder_t) as item :
+            item.contents.item_id = self.item_id
+            item.contents.parent_id = self.parent_id
+            check_status \
               (
-                self.device.device,
-                item,
-                newname.encode("utf-8")
+                mtp.LIBMTP_Set_Folder_Name
+                  (
+                    self.device.device,
+                    item,
+                    newname.encode("utf-8")
+                  )
               )
-          )
-        mtp.LIBMTP_destroy_folder_t(item)
+        #end with
         self.name = newname
         self.device.set_contents_changed()
     #end set_name
@@ -1037,13 +1055,13 @@ class Folder :
 
 def get_raw_devices() :
     """returns a list of all MTP devices detected on the system."""
-    devices = ct.POINTER(raw_device_t)()
-    nr_devices = ct.c_int(0)
-    check_status(mtp.LIBMTP_Detect_Raw_Devices(ct.byref(devices), ct.byref(nr_devices)))
-    result = []
-    for i in range(0, nr_devices.value) :
-        result.append(RawDevice(devices[i]))
-    #end for
-    libc.free(devices)
+    with LeakProtect(ct.POINTER(raw_device_t)(), libc.free) as devices :
+        nr_devices = ct.c_int(0)
+        check_status(mtp.LIBMTP_Detect_Raw_Devices(ct.byref(devices), ct.byref(nr_devices)))
+        result = []
+        for i in range(0, nr_devices.value) :
+            result.append(RawDevice(devices[i]))
+        #end for
+    #end with
     return result
 #end get_raw_devices
