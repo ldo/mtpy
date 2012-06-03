@@ -40,6 +40,12 @@ mtp.LIBMTP_Get_Syncpartner.restype = ct.c_char_p
 mtp.LIBMTP_Get_Filetype_Description.restype = ct.c_char_p
 mtp.LIBMTP_destroy_file_t.restype = None
 mtp.LIBMTP_destroy_folder_t.restype = None
+mtp.LIBMTP_Get_String_From_Object.restype = ct.c_void_p # c_char_p
+mtp.LIBMTP_Get_u64_From_Object.restype = ct.c_uint64
+mtp.LIBMTP_Get_u32_From_Object.restype = ct.c_uint32
+mtp.LIBMTP_Get_u16_From_Object.restype = ct.c_uint16
+mtp.LIBMTP_Get_u8_From_Object.restype = ct.c_uint8
+mtp.LIBMTP_Get_Property_Description.restype = ct.c_char_p # I don't need to dispose of result
 mtp.LIBMTP_destroy_allowed_values_t.restype = None
 mtp.LIBMTP_Create_Folder.restype = ct.c_uint32
 libc = ct.cdll.LoadLibrary("libc.so.6")
@@ -1043,6 +1049,82 @@ class Device() :
         return self.get_descendant_by_id(folderid)
     #end create_folder
 
+    def get_string_from_object(self, objectid, propertyid) :
+        resultstr = mtp.LIBMTP_Get_String_From_Object(self.device, objectid, propertyid)
+        if bool(resultstr) :
+            result = bytes(ct.cast(resultstr, ct.c_char_p)).decode("utf-8")
+            libc.free(resultstr)
+        else :
+            result = None
+        #end if
+        return result
+    #end get_string_from_object
+
+    def get_int_from_object(self, objectid, propertyid, bitsize, default) :
+        return \
+            (
+                {
+                    8 : mtp.LIBMTP_Get_u8_From_Object,
+                    16 : mtp.LIBMTP_Get_u16_From_Object,
+                    32 : mtp.LIBMTP_Get_u32_From_Object,
+                    64 : mtp.LIBMTP_Get_u64_From_Object,
+                }[bitsize]
+                  (
+                    self.device,
+                    objectid,
+                    propertyid,
+                    default
+                  )
+            )
+    #end get_int_from_object
+
+    def set_object_int(self, objectid, propertyid, bitsize, newvalue) :
+        check_status \
+          (
+                {
+                    8 : mtp.LIBMTP_Set_Object_u8,
+                    16 : mtp.LIBMTP_Set_Object_u16,
+                    32 : mtp.LIBMTP_Set_Object_u32,
+                    # 64 : mtp.LIBMTP_Set_Object_u64, # doesn't exist!?
+                }[bitsize]
+                  (
+                    self.device,
+                    objectid,
+                    propertyid,
+                    newvalue
+                  )
+          )
+    #end set_object_int
+
+    def get_string_property(self, propertyid) :
+        return self.get_string_from_object(0, propertyid)
+    #end get_string_property
+
+    def get_int_property(self, propertyid, bitsize, default) :
+        return self.get_int_from_object(0, propertyid, bitsize, default)
+    #end get_int_property
+
+    def set_object_string(self, objectid, propertyid, newvalue) :
+        check_status \
+          (
+            mtp.LIBMTP_Set_Object_String
+              (
+                self.device,
+                objectid,
+                propertyid,
+                newvalue.encode("utf-8")
+              )
+          )
+    #end set_object_string
+
+    def set_string_property(self, propertyid, newvalue) :
+        self.set_object_string(0, propertyid, newvalue)
+    #end set_string_property
+
+    def set_int_property(self, propertyid, bitsize, newvalue) :
+        self.set_object_int(0, propertyid, bitsize, newvalue)
+    #end set_int_property
+
     def is_property_supported(self, propid, filetypeid) :
         return \
             (
@@ -1147,6 +1229,22 @@ class File :
         self.name = newname
         self.device.set_contents_changed()
     #end set_name
+
+    def get_string_property(self, propertyid) :
+        return self.device.get_string_from_object(self.item_id, propertyid)
+    #end get_string_property
+
+    def set_string_property(self, propertyid, newvalue) :
+        self.device.set_object_string(self.item_id, propertyid, newvalue)
+    #end set_string_property
+
+    def get_int_property(self, propertyid, bitsize, default) :
+        return self.device.get_int_from_object(self.item_id, propertyid, bitsize, default)
+    #end get_int_property
+
+    def set_int_property(self, propertyid, bitsize, newvalue) :
+        self.device.set_object_int(self.item_id, propertyid, bitsize, newvalue)
+    #end set_int_property
 
     def delete(self, delete_descendants = False) :
         """deletes the file on the device. You must not make any further use
@@ -1303,6 +1401,22 @@ class Folder :
         self.device.set_contents_changed()
     #end set_name
 
+    def get_string_property(self, propertyid) :
+        return self.device.get_string_from_object(self.item_id, propertyid)
+    #end get_string_property
+
+    def set_string_property(self, propertyid, newvalue) :
+        self.device.set_object_string(self.item_id, propertyid, newvalue)
+    #end set_string_property
+
+    def get_int_property(self, propertyid, bitsize, default) :
+        return self.device.get_int_from_object(self.item_id, propertyid, bitsize, default)
+    #end get_int_property
+
+    def set_int_property(self, propertyid, bitsize, newvalue) :
+        self.device.set_object_int(self.item_id, propertyid, bitsize, newvalue)
+    #end set_int_property
+
     def delete(self, delete_descendants = False) :
         """deletes the folder on the device. You must not make any further use
         of this Folder object (or any of its descendant File or Folder objects)
@@ -1346,3 +1460,7 @@ def get_raw_devices() :
     #end with
     return result
 #end get_raw_devices
+
+def get_property_description(propertyid) :
+    return bytes(mtp.LIBMTP_Get_Property_Description(propertyid)).decode("utf-8")
+#end get_property_description
