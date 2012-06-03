@@ -1,11 +1,6 @@
 #+
 # My ctypes-based interface to libmtp.
 #
-# This library is free software; you can redistribute it and/or
-# modify it under the terms of the GNU Lesser General Public
-# License as published by the Free Software Foundation; either
-# version 2 of the License, or (at your option) any later version.
-#
 # Overview: use get_raw_devices() to get a list of RawDevice objects
 # representing MTP-speaking devices connected to your host system.
 # Use the open() method on any of these to obtain a Device object.
@@ -19,7 +14,12 @@
 # (Samsung Galaxy Nexus) which only uses MTP for file-transfer
 # purposes, not for its media-player functions.
 #
-# Written by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2012 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2 of the License, or (at your option) any later version.
 #-
 
 import ctypes as ct
