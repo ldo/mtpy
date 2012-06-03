@@ -75,5 +75,7 @@ after this point.
 
 closes the connection to the Device when you have finished with it.
 
+Licence: LGPL2+, same as libmtp.
+
 Lawrence D’Oliveiro
-2012 June 1
+2012 June 3
