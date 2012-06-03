@@ -40,6 +40,7 @@ mtp.LIBMTP_Get_Syncpartner.restype = ct.c_char_p
 mtp.LIBMTP_Get_Filetype_Description.restype = ct.c_char_p
 mtp.LIBMTP_destroy_file_t.restype = None
 mtp.LIBMTP_destroy_folder_t.restype = None
+mtp.LIBMTP_destroy_allowed_values_t.restype = None
 mtp.LIBMTP_Create_Folder.restype = ct.c_uint32
 libc = ct.cdll.LoadLibrary("libc.so.6")
 libc.free.argtypes = [ct.c_void_p]
@@ -260,6 +261,189 @@ def FILETYPE_IS_CALENDAR(a) :
         )
 #end FILETYPE_IS_CALENDAR
 
+# The properties defined here are the external types used
+# by the libmtp library interface.
+PROPERTY_StorageID = 0
+PROPERTY_ObjectFormat = 1
+PROPERTY_ProtectionStatus = 2
+PROPERTY_ObjectSize = 3
+PROPERTY_AssociationType = 4
+PROPERTY_AssociationDesc = 5
+PROPERTY_ObjectFileName = 6
+PROPERTY_DateCreated = 7
+PROPERTY_DateModified = 8
+PROPERTY_Keywords = 9
+PROPERTY_ParentObject = 10
+PROPERTY_AllowedFolderContents = 11
+PROPERTY_Hidden = 12
+PROPERTY_SystemObject = 13
+PROPERTY_PersistantUniqueObjectIdentifier = 14
+PROPERTY_SyncID = 15
+PROPERTY_PropertyBag = 16
+PROPERTY_Name = 17
+PROPERTY_CreatedBy = 18
+PROPERTY_Artist = 19
+PROPERTY_DateAuthored = 20
+PROPERTY_Description = 21
+PROPERTY_URLReference = 22
+PROPERTY_LanguageLocale = 23
+PROPERTY_CopyrightInformation = 24
+PROPERTY_Source = 25
+PROPERTY_OriginLocation = 26
+PROPERTY_DateAdded = 27
+PROPERTY_NonConsumable = 28
+PROPERTY_CorruptOrUnplayable = 29
+PROPERTY_ProducerSerialNumber = 30
+PROPERTY_RepresentativeSampleFormat = 31
+PROPERTY_RepresentativeSampleSize = 32
+PROPERTY_RepresentativeSampleHeight = 33
+PROPERTY_RepresentativeSampleWidth = 34
+PROPERTY_RepresentativeSampleDuration = 35
+PROPERTY_RepresentativeSampleData = 36
+PROPERTY_Width = 37
+PROPERTY_Height = 38
+PROPERTY_Duration = 39
+PROPERTY_Rating = 40
+PROPERTY_Track = 41
+PROPERTY_Genre = 42
+PROPERTY_Credits = 43
+PROPERTY_Lyrics = 44
+PROPERTY_SubscriptionContentID = 45
+PROPERTY_ProducedBy = 46
+PROPERTY_UseCount = 47
+PROPERTY_SkipCount = 48
+PROPERTY_LastAccessed = 49
+PROPERTY_ParentalRating = 50
+PROPERTY_MetaGenre = 51
+PROPERTY_Composer = 52
+PROPERTY_EffectiveRating = 53
+PROPERTY_Subtitle = 54
+PROPERTY_OriginalReleaseDate = 55
+PROPERTY_AlbumName = 56
+PROPERTY_AlbumArtist = 57
+PROPERTY_Mood = 58
+PROPERTY_DRMStatus = 59
+PROPERTY_SubDescription = 60
+PROPERTY_IsCropped = 61
+PROPERTY_IsColorCorrected = 62
+PROPERTY_ImageBitDepth = 63
+PROPERTY_Fnumber = 64
+PROPERTY_ExposureTime = 65
+PROPERTY_ExposureIndex = 66
+PROPERTY_DisplayName = 67
+PROPERTY_BodyText = 68
+PROPERTY_Subject = 69
+PROPERTY_Priority = 70
+PROPERTY_GivenName = 71
+PROPERTY_MiddleNames = 72
+PROPERTY_FamilyName = 73
+PROPERTY_Prefix = 74
+PROPERTY_Suffix = 75
+PROPERTY_PhoneticGivenName = 76
+PROPERTY_PhoneticFamilyName = 77
+PROPERTY_EmailPrimary = 78
+PROPERTY_EmailPersonal1 = 79
+PROPERTY_EmailPersonal2 = 80
+PROPERTY_EmailBusiness1 = 81
+PROPERTY_EmailBusiness2 = 82
+PROPERTY_EmailOthers = 83
+PROPERTY_PhoneNumberPrimary = 84
+PROPERTY_PhoneNumberPersonal = 85
+PROPERTY_PhoneNumberPersonal2 = 86
+PROPERTY_PhoneNumberBusiness = 87
+PROPERTY_PhoneNumberBusiness2 = 88
+PROPERTY_PhoneNumberMobile = 89
+PROPERTY_PhoneNumberMobile2 = 90
+PROPERTY_FaxNumberPrimary = 91
+PROPERTY_FaxNumberPersonal = 92
+PROPERTY_FaxNumberBusiness = 93
+PROPERTY_PagerNumber = 94
+PROPERTY_PhoneNumberOthers = 95
+PROPERTY_PrimaryWebAddress = 96
+PROPERTY_PersonalWebAddress = 97
+PROPERTY_BusinessWebAddress = 98
+PROPERTY_InstantMessengerAddress = 99
+PROPERTY_InstantMessengerAddress2 = 100
+PROPERTY_InstantMessengerAddress3 = 101
+PROPERTY_PostalAddressPersonalFull = 102
+PROPERTY_PostalAddressPersonalFullLine1 = 103
+PROPERTY_PostalAddressPersonalFullLine2 = 104
+PROPERTY_PostalAddressPersonalFullCity = 105
+PROPERTY_PostalAddressPersonalFullRegion = 106
+PROPERTY_PostalAddressPersonalFullPostalCode = 107
+PROPERTY_PostalAddressPersonalFullCountry = 108
+PROPERTY_PostalAddressBusinessFull = 109
+PROPERTY_PostalAddressBusinessLine1 = 110
+PROPERTY_PostalAddressBusinessLine2 = 111
+PROPERTY_PostalAddressBusinessCity = 112
+PROPERTY_PostalAddressBusinessRegion = 113
+PROPERTY_PostalAddressBusinessPostalCode = 114
+PROPERTY_PostalAddressBusinessCountry = 115
+PROPERTY_PostalAddressOtherFull = 116
+PROPERTY_PostalAddressOtherLine1 = 117
+PROPERTY_PostalAddressOtherLine2 = 118
+PROPERTY_PostalAddressOtherCity = 119
+PROPERTY_PostalAddressOtherRegion = 120
+PROPERTY_PostalAddressOtherPostalCode = 121
+PROPERTY_PostalAddressOtherCountry = 122
+PROPERTY_OrganizationName = 123
+PROPERTY_PhoneticOrganizationName = 124
+PROPERTY_Role = 125
+PROPERTY_Birthdate = 126
+PROPERTY_MessageTo = 127
+PROPERTY_MessageCC = 128
+PROPERTY_MessageBCC = 129
+PROPERTY_MessageRead = 130
+PROPERTY_MessageReceivedTime = 131
+PROPERTY_MessageSender = 132
+PROPERTY_ActivityBeginTime = 133
+PROPERTY_ActivityEndTime = 134
+PROPERTY_ActivityLocation = 135
+PROPERTY_ActivityRequiredAttendees = 136
+PROPERTY_ActivityOptionalAttendees = 137
+PROPERTY_ActivityResources = 138
+PROPERTY_ActivityAccepted = 139
+PROPERTY_Owner = 140
+PROPERTY_Editor = 141
+PROPERTY_Webmaster = 142
+PROPERTY_URLSource = 143
+PROPERTY_URLDestination = 144
+PROPERTY_TimeBookmark = 145
+PROPERTY_ObjectBookmark = 146
+PROPERTY_ByteBookmark = 147
+PROPERTY_LastBuildDate = 148
+PROPERTY_TimetoLive = 149
+PROPERTY_MediaGUID = 150
+PROPERTY_TotalBitRate = 151
+PROPERTY_BitRateType = 152
+PROPERTY_SampleRate = 153
+PROPERTY_NumberOfChannels = 154
+PROPERTY_AudioBitDepth = 155
+PROPERTY_ScanDepth = 156
+PROPERTY_AudioWAVECodec = 157
+PROPERTY_AudioBitRate = 158
+PROPERTY_VideoFourCCCodec = 159
+PROPERTY_VideoBitRate = 160
+PROPERTY_FramesPerThousandSeconds = 161
+PROPERTY_KeyFrameDistance = 162
+PROPERTY_BufferSize = 163
+PROPERTY_EncodingQuality = 164
+PROPERTY_EncodingProfile = 165
+PROPERTY_BuyFlag = 166
+PROPERTY_UNKNOWN = 167
+property_t = ct.c_uint
+
+# These are the data types
+DATATYPE_INT8 = 0
+DATATYPE_UINT8 = 1
+DATATYPE_INT16 = 2
+DATATYPE_UINT16 = 3
+DATATYPE_INT32 = 4
+DATATYPE_UINT32 = 5
+DATATYPE_INT64 = 6
+DATATYPE_UINT64 = 7
+datatype_t = ct.c_uint
+
 #+
 # Internal low-level structs
 # (if in doubt, stay away from these)
@@ -382,6 +566,68 @@ mtp.LIBMTP_Get_Filelisting.restype = ct.POINTER(file_t)
 mtp.LIBMTP_Get_Folder_List.restype = ct.POINTER(folder_t)
 mtp.LIBMTP_new_file_t.restype = ct.POINTER(file_t)
 mtp.LIBMTP_new_folder_t.restype = ct.POINTER(folder_t)
+
+class allowed_values_t(ct.Structure) :
+    # A data structure to hold allowed ranges of values
+    _fields_ = \
+        [
+            ("u8max", ct.c_uint8),
+            ("u8min", ct.c_uint8),
+            ("u8step", ct.c_uint8),
+            ("u8vals", ct.POINTER(ct.c_uint8)),
+            ("i8max", ct.c_int8),
+            ("i8min", ct.c_int8),
+            ("i8step", ct.c_int8),
+            ("i8vals", ct.POINTER(ct.c_int8)),
+            ("u16max", ct.c_uint16),
+            ("u16min", ct.c_uint16),
+            ("u16step", ct.c_uint16),
+            ("u16vals", ct.POINTER(ct.c_uint16)),
+            ("16max", ct.c_int16),
+            ("16min", ct.c_int16),
+            ("16step", ct.c_int16),
+            ("16vals", ct.POINTER(ct.c_int16)),
+            ("u32max", ct.c_uint32),
+            ("u32min", ct.c_uint32),
+            ("u32step", ct.c_uint32),
+            ("u32vals", ct.POINTER(ct.c_uint32)),
+            ("i32max", ct.c_int32),
+            ("i32min", ct.c_int32),
+            ("i32step", ct.c_int32),
+            ("i32vals", ct.POINTER(ct.c_int32)),
+            ("u64max", ct.c_uint64),
+            ("u64min", ct.c_uint64),
+            ("u64step", ct.c_uint64),
+            ("u64vals", ct.POINTER(ct.c_uint64)),
+            ("i64max", ct.c_int64),
+            ("i64min", ct.c_int64),
+            ("i64step", ct.c_int64),
+            ("i64vals", ct.POINTER(ct.c_int64)),
+            ("num_entries", ct.c_uint16), # Number of entries in the vals array
+            ("datatype", datatype_t), # The datatype specifying which of the above is used
+            ("is_range", ct.c_int), # Non zero for range, 0 for enum
+        ]
+    use_fields = {}
+    for \
+        (datatype, bitsize, signed) \
+    in \
+        (
+            (DATATYPE_INT8, 8, True),
+            (DATATYPE_UINT8, 8, False),
+            (DATATYPE_INT16, 16, True),
+            (DATATYPE_UINT16, 16, False),
+            (DATATYPE_INT32, 32, True),
+            (DATATYPE_UINT32, 32, False),
+            (DATATYPE_INT64, 64, True),
+            (DATATYPE_UINT64, 64, False),
+        ) \
+    :
+        use_fields[datatype] = {}
+        for suffix in ("min", "max", "step", "vals") :
+            use_fields[datatype][suffix] = "%s%d%s" % (("u", "i")[signed], bitsize, suffix)
+        #end for
+    #end for
+#end allowed_values_t
 
 #+
 # Internal useful stuff
@@ -796,6 +1042,41 @@ class Device() :
         self.set_contents_changed()
         return self.get_descendant_by_id(folderid)
     #end create_folder
+
+    def is_property_supported(self, propid, filetypeid) :
+        return \
+            (
+                mtp.LIBMTP_Is_Property_Supported(self.device, propid, filetypeid)
+            !=
+                0
+            )
+    #end is_property_supported
+
+    def get_allowed_property_values(self, propid, filetypeid) :
+        with LeakProtect(ct.pointer(allowed_values_t()), mtp.LIBMTP_destroy_allowed_values_t) as allowed :
+            check_status \
+              (
+                mtp.LIBMTP_Get_Allowed_Property_Values
+                  (
+                    self.device,
+                    propid,
+                    filetypeid,
+                    allowed
+                  )
+              )
+            result = {"datatype" : allowed.contents.datatype, "is_range" : allowed.contents.is_range != 0}
+            use_fields = allowed.contents.use_fields[allowed.contents.datatype]
+            if result["is_range"]  :
+                result["min"] = getattr(allowed.contents, use_fields["min"])
+                result["max"] = getattr(allowed.contents, use_fields["max"])
+                result["step"] = getattr(allowed.contents, use_fields["step"])
+            else :
+                vals = getattr(allowed.contents, use_fields["vals"])
+                result["vals"] = tuple(vals[i] for i in range(0, allowed.contents.num_entries))
+            #end if
+        #end with
+        return result
+    #end get_allowed_property_values
 
 #end Device
 
