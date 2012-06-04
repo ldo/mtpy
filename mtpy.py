@@ -1120,7 +1120,7 @@ class Device() :
 
     def _ensure_got_descendants(self) :
         if self.descendants_by_id == None :
-            self._cache_contents(self.get_files_and_folders(0))
+            self._cache_contents(common_get_files_and_folders(self, 0, 0))
         #end if
     #end _ensure_got_descendants
 
@@ -1259,32 +1259,6 @@ class Device() :
         self._ensure_got_albums()
         return self.albums_by_id.get(id)
     #end get_album_by_id
-
-    # don't use following directly, use above higher-level methods instead
-
-    def get_files_and_folders(self, storageid = 0) :
-        return common_get_files_and_folders(self, storageid, 0)
-    #end get_files_and_folders
-
-    def get_all_files(self) :
-        return \
-            common_return_files_and_folders(mtp.LIBMTP_Get_Filelisting(self.device), self)
-    #end get_all_files
-
-    def get_all_folders(self) :
-        items = mtp.LIBMTP_Get_Folder_List(self.device)
-        result = []
-        while bool(items) :
-            initem = items.contents
-            outitem = Folder(initem, self)
-            result.append(outitem)
-            # mtp.LIBMTP_destroy_folder_t(items) # causes heap corruption?
-            items = initem.sibling
-        #end while
-        return result
-    #end get_all_folders
-
-    # end don't-use stuff
 
     def send_file(self, src, destname) :
         """sends the specified file to the device under the specified name
@@ -1667,25 +1641,6 @@ class Folder :
         self._ensure_got_children()
         return self.children_by_name.get(name)
     #end get_child_by_name
-
-    # don't use following directly, use above higher-level methods instead
-
-    def get_files_and_folders(self, storageid = None) :
-        if storageid != None :
-            # look on specified storage
-            storageids = (storageid,)
-        else :
-            # look on all available storage
-            storageids = tuple(s["id"] for s in self.device.storage)
-        #end if
-        result = []
-        for storageid in storageids :
-            result.extend(common_get_files_and_folders(self.device, storageid, self.item_id))
-        #end for
-        return result
-    #end get_files_and_folders
-
-    # end don't-use stuff
 
     def retrieve_to_folder(self, dest) :
         common_retrieve_to_folder(self, dest)
