@@ -846,16 +846,68 @@ def common_send_track \
             mtp.LIBMTP_Send_Track_From_File
               (
                 device.device,
-                src,
+                src.encode("utf-8"),
                 track,
                 None, # progress
                 None # progress arg
               )
           )
-        result = Track(track.contents, device)
+        result = track.contents.item_id
     #end with
     return result
 #end common_send_track
+
+def common_create_playlist(device, parentid, name, storageid) :
+    with LeakProtect(mtp.LIBMTP_new_playlist_t(), mtp.LIBMTP_destroy_playlist_t) as playlist :
+        playlist.contents.parent_id = parentid
+        playlist.contents.storage_id = storageid
+        playlist.name = libc.strdup(name.encode("utf-8"))
+        # initially no tracks
+        check_status \
+          (
+            mtp.LIBMTP_Create_New_Playlist(device.device, playlist)
+          )
+        result = playlist.contents.playlist_id
+    #end with
+    return result
+#end common_create_playlist
+
+def common_create_album(device, parentid, name, storageid, artist = None, composer = None, genre = None) :
+    with LeakProtect(mtp.LIBMTP_new_album_t(), mtp.LIBMTP_destroy_album_t) as album :
+        album.contents.parent_id = parentid
+        album.contents.storage_id = storageid
+        album.contents.name = libc.strdup(name.encode("utf-8"))
+        for \
+            (attr, value) \
+        in \
+            (
+                ("artist", artist),
+                ("composer", composer),
+                ("genre", genre),
+            ) \
+        :
+            if value != None :
+                setattr(album.contents, attr, libc.strdup(value.encode("utf-8")))
+                  # will be disposed by libmtp
+            #end if
+        #end for
+        # initially no tracks
+        check_status \
+          (
+            mtp.LIBMTP_Create_New_Album(device.device, album)
+          )
+        result = album.contents.album_id
+    #end with
+    return result
+#end common_create_album
+
+def common_delete_object(device, objectid) :
+    check_status \
+      (
+        mtp.LIBMTP_Delete_Object(device.device, objectid)
+      )
+    device.set_contents_changed()
+#end common_delete_object
 
 #+
 # User-visible high-level classes
@@ -1184,12 +1236,22 @@ class Device() :
         return self.tracks_by_id.get(id)
     #end get_track_by_id
 
+    def get_playlists(self) :
+        self._ensure_got_playlists()
+        return list(self.playlists_by_id.values())
+    #end get_playlists
+
     def get_playlist_by_id(self, id) :
         """returns a playlist on the device identified by device-wide ID,
         or None if not found."""
         self._ensure_got_playlists()
         return self.playlists_by_id.get(id)
     #end get_playlist_by_id
+
+    def get_albums(self) :
+        self._ensure_got_albums()
+        return list(self.albums_by_id.values())
+    #end get_albumss
 
     def get_album_by_id(self, id) :
         """returns an album on the device identified by device-wide ID,
@@ -1402,7 +1464,7 @@ class Device() :
         else :
             destname = childname
         #end if
-        new_track = common_send_track \
+        trackid = common_send_track \
           (
             device = self,
             src = src,
@@ -1419,8 +1481,21 @@ class Device() :
             duration = duration,
             rating = rating,
           )
-        self.tracks_by_id[new_track.item_id] = new_track
-      #end send_track
+        self.set_contents_changed()
+        return self.get_track_by_id(trackid)
+    #end send_track
+
+    def create_playlist(self, name, storageid = 0) :
+        playlistid = common_create_playlist(self, 0, name, storageid)
+        self.set_contents_changed()
+        return self.get_playlist_by_id(playlistid)
+    #end create_playlist
+
+    def create_album(self, name, storageid = 0, artist = None, composer = None, genre = None) :
+        albumid = common_create_album(self, 0, name, storageid, artist, composer, genre)
+        self.set_contents_changed()
+        return self.get_album_by_id(albumid)
+    #end create_album
 
 #end Device
 
@@ -1724,7 +1799,7 @@ class Folder :
         duration = 0,
         rating = 0,
       ) :
-        new_track = common_send_track \
+        trackid = common_send_track \
           (
             device = self.device,
             src = src,
@@ -1741,8 +1816,21 @@ class Folder :
             duration = duration,
             rating = rating,
           )
-        self.device.tracks_by_id[new_track.item_id] = new_track
+        self.device.set_contents_changed()
+        return self.device.get_track_by_id(trackid)
       #end send_track
+
+    def create_playlist(self, name, storageid = 0) :
+        playlistid = common_create_playlist(self.device, self.item_id, name, storageid)
+        self.device.set_contents_changed()
+        return self.device.get_playlist_by_id(playlistid)
+    #end create_playlist
+
+    def create_album(self, name, storageid = 0, artist = None, composer = None, genre = None) :
+        albumid = common_create_album(self.device, self.item_id, name, storageid, artist, composer, genre)
+        self.device.set_contents_changed()
+        return self.device.get_album_by_id(albumid)
+    #end create_album
 
 #end Folder
 
@@ -1774,6 +1862,13 @@ class Track :
         #end with
         self.name = newname
     #end set_name
+
+    def delete(self) :
+        common_delete_object(self.device, self.item_id)
+        # make myself unusable:
+        del self.name
+        del self.item_id
+    #end delete
 
 #end Track
 
@@ -1824,6 +1919,13 @@ class Playlist :
         self._update_tracks(tuple(t.item_id for t in new_tracks))
     #end set_tracks
 
+    def delete(self) :
+        common_delete_object(self.device, self.item_id)
+        # make myself unusable:
+        del self.name
+        del self.item_id
+    #end delete
+
 #end Playlist
 
 class Album :
@@ -1872,6 +1974,13 @@ class Album :
         """sets the specified list of Track objects as the new contents of this album."""
         self._update_tracks(tuple(t.item_id for t in new_tracks))
     #end set_tracks
+
+    def delete(self) :
+        common_delete_object(self.device, self.item_id)
+        # make myself unusable:
+        del self.name
+        del self.item_id
+    #end delete
 
 #end Album
 
