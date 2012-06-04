@@ -48,7 +48,11 @@ mtp.LIBMTP_Get_u8_From_Object.restype = ct.c_uint8
 mtp.LIBMTP_Get_Property_Description.restype = ct.c_char_p # I don't need to dispose of result
 mtp.LIBMTP_destroy_allowed_values_t.restype = None
 mtp.LIBMTP_Create_Folder.restype = ct.c_uint32
+mtp.LIBMTP_destroy_track_t.restype = None
+mtp.LIBMTP_destroy_playlist_t.restype = None
+mtp.LIBMTP_destroy_album_t.restype = None
 libc = ct.cdll.LoadLibrary("libc.so.6")
+libc.malloc.restype = ct.c_void_p
 libc.free.argtypes = [ct.c_void_p]
 libc.free.restype = None
 libc.strdup.restype = ct.c_void_p
@@ -573,6 +577,77 @@ mtp.LIBMTP_Get_Folder_List.restype = ct.POINTER(folder_t)
 mtp.LIBMTP_new_file_t.restype = ct.POINTER(file_t)
 mtp.LIBMTP_new_folder_t.restype = ct.POINTER(folder_t)
 
+class track_t(ct.Structure) :
+    pass
+#end track_t
+track_t._fields_ = \
+    [
+        ("item_id", ct.c_uint32), # Unique item ID
+        ("parent_id", ct.c_uint32), # ID of parent folder
+        ("storage_id", ct.c_uint32), # ID of storage holding this track
+        ("title", ct.c_char_p), # Track title
+        ("artist", ct.c_char_p), # Name of recording artist
+        ("composer", ct.c_char_p), # Name of recording composer
+        ("genre", ct.c_char_p), # Genre name for track
+        ("album", ct.c_char_p), # Album name for track
+        ("date", ct.c_char_p), # Date of original recording as a string
+        ("filename", ct.c_char_p), # Original filename of this track
+        ("tracknumber", ct.c_uint16), # Track number (in sequence on recording)
+        ("duration", ct.c_uint32), # Duration in milliseconds
+        ("samplerate", ct.c_uint32), # Sample rate of original file, min 0x1f80 max 0xbb80
+        ("nochannels", ct.c_uint16), # Number of channels in this recording 0 = unknown, 1 or 2
+        ("wavecodec", ct.c_uint32), # FourCC wave codec name
+        ("bitrate", ct.c_uint32), # (Average) bitrate for this file min=1 max=0x16e360
+        ("bitratetype", ct.c_uint16), # 0 = unused, 1 = constant, 2 = VBR, 3 = free
+        ("rating", ct.c_uint16), # User rating 0-100 (0x00-0x64)
+        ("usecount", ct.c_uint32), # Number of times used/played
+        ("filesize", ct.c_uint64), # Size of track file in bytes
+        ("modificationdate", time_t), # Date of last alteration of the track
+        ("filetype", filetype_t), # Filetype used for the current track
+        ("next", ct.POINTER(track_t)), # Next track in list or NULL if last track
+    ]
+
+class playlist_t(ct.Structure) :
+    pass
+#end playlist_t
+playlist_t._fields_ = \
+    [
+        ("playlist_id", ct.c_uint32), # Unique playlist ID
+        ("parent_id", ct.c_uint32), # ID of parent folder
+        ("storage_id", ct.c_uint32), # ID of storage holding this playlist
+        ("name", ct.c_char_p), # Name of playlist
+        ("tracks", ct.POINTER(ct.c_uint32)), # The tracks in this playlist
+        ("no_tracks", ct.c_uint32), # The number of tracks in this playlist
+        ("next", ct.POINTER(playlist_t)), # Next playlist or NULL if last playlist
+    ]
+
+class album_t(ct.Structure) :
+    pass
+#end album_t
+album_t._fields_ = \
+    [
+        ("album_id", ct.c_uint32), # Unique playlist ID
+        ("parent_id", ct.c_uint32), # ID of parent folder
+        ("storage_id", ct.c_uint32), # ID of storage holding this album
+        ("name", ct.c_char_p), # Name of album
+        ("artist", ct.c_char_p), # Name of album artist
+        ("composer", ct.c_char_p), # Name of recording composer
+        ("genre", ct.c_char_p), # Genre of album
+        ("tracks", ct.POINTER(ct.c_uint32)), # The tracks in this album
+        ("no_tracks", ct.c_uint32), # The number of tracks in this album
+        ("next", ct.POINTER(album_t)), # Next album or NULL if last album
+    ]
+
+mtp.LIBMTP_new_track_t.restype = ct.POINTER(track_t)
+mtp.LIBMTP_Get_Tracklisting_With_Callback.restype = ct.POINTER(track_t)
+mtp.LIBMTP_Get_Trackmetadata.restype = ct.POINTER(track_t)
+mtp.LIBMTP_new_playlist_t.restype = ct.POINTER(playlist_t)
+mtp.LIBMTP_Get_Playlist_List.restype = ct.POINTER(playlist_t)
+mtp.LIBMTP_Get_Playlist.restype = ct.POINTER(playlist_t)
+mtp.LIBMTP_new_album_t.restype = ct.POINTER(album_t)
+mtp.LIBMTP_Get_Album_List.restype = ct.POINTER(album_t)
+mtp.LIBMTP_Get_Album.restype = ct.POINTER(album_t)
+
 class allowed_values_t(ct.Structure) :
     # A data structure to hold allowed ranges of values
     _fields_ = \
@@ -633,6 +708,7 @@ class allowed_values_t(ct.Structure) :
             use_fields[datatype][suffix] = "%s%d%s" % (("u", "i")[signed], bitsize, suffix)
         #end for
     #end for
+    del datatype, bitsize, signed
 #end allowed_values_t
 
 #+
@@ -719,6 +795,67 @@ def common_retrieve_to_folder(self, dest) :
         #end if
     #end for
 #end common_retrieve_to_folder
+
+def common_send_track \
+  (
+    device,
+    src,
+    parentid,
+    destname,
+    filetype,
+    storageid = 0,
+    title = None,
+    artist = None,
+    composer = None,
+    genre = None,
+    album = None,
+    date = None,
+    duration = 0, # seconds
+    rating = 0,
+  ) :
+    with LeakProtect(mtp.LIBMTP_new_track_t(), mtp.LIBMTP_destroy_track_t) as track :
+        track.contents.parent_id = parentid
+        track.contents.storage_id = storageid
+        for \
+            (attr, value) \
+        in \
+            (
+                ("title", title),
+                ("artist", artist),
+                ("composer", composer),
+                ("genre", genre),
+                ("album", album),
+                ("date", date),
+            ) \
+        :
+            if value != None :
+                setattr(track.contents, attr, libc.strdup(value.encode("utf-8")))
+                  # will be disposed by libmtp
+            #end if
+        #end for
+        track.contents.duration = round(duration * 1000) # convert to milliseconds
+        # tracknumber? samplerate? nochannels? wavecodec? bitrate? bitratetype?
+        track.contents.filetype = filetype
+        stat = os.stat(src)
+        track.contents.filesize = stat.st_size
+        track.contents.filename = libc.strdup(destname.encode("utf-8"))
+        track.contents.modificationdate = round(stat.st_mtime) # I like to preserve this
+        track.contents.rating = rating
+        check_status \
+          (
+            mtp.LIBMTP_Send_Track_From_File
+              (
+                device.device,
+                src,
+                track,
+                None, # progress
+                None # progress arg
+              )
+          )
+        result = Track(track.contents, device)
+    #end with
+    return result
+#end common_send_track
 
 #+
 # User-visible high-level classes
@@ -811,10 +948,12 @@ class Device() :
         #end while
         self.item_id = 0
         self.parent_id = 0
-        self.got_descendants = False
         self.update_seq = 1 # cache coherence check
         self.children_by_name = None
         self.descendants_by_id = None
+        self.tracks_by_id = None
+        self.playlists_by_id = None
+        self.albums_by_id = None
     #end __init__
 
     def close(self) :
@@ -905,9 +1044,11 @@ class Device() :
     def set_contents_changed(self) :
         """Call this on any creation/deletion of files/folders, to force refetch
         of all files/folders."""
-        self.got_descendants = 0
         self.children_by_name = None
         self.descendants_by_id = None
+        self.tracks_by_id = None
+        self.playlists_by_id = None
+        self.albums_by_id = None
         self.update_seq += 1
     #def set_contents_changed
 
@@ -926,15 +1067,53 @@ class Device() :
     #end _cache_contents
 
     def _ensure_got_descendants(self) :
-        if not self.got_descendants :
+        if self.descendants_by_id == None :
             self._cache_contents(self.get_files_and_folders(0))
-            self.got_descendants = True
         #end if
     #end _ensure_got_descendants
 
     def _ensure_got_children(self) :
         self._ensure_got_descendants()
     #end _ensure_got_children
+
+    def _ensure_got_tracks(self) :
+        if self.tracks_by_id == None :
+            self.tracks_by_id = {}
+            track = mtp.LIBMTP_Get_Tracklisting_With_Callback(self.device, None, None)
+            while bool(track) :
+                self.tracks_by_id[track.contents.item_id] = Track(track.contents, self)
+                next = track.contents.next
+                mtp.LIBMTP_destroy_track_t(track)
+                track = next
+            #end while
+        #end if
+    #end _ensure_got_tracks
+
+    def _ensure_got_playlists(self) :
+        if self.playlists_by_id == None :
+            self.playlists_by_id = {}
+            playlist = mtp.LIBMTP_Get_Playlist_List(self.device)
+            while bool(playlist) :
+                self.playlists_by_id[playlist.contents.item_id] = Playlist(playlist.contents, self)
+                next = playlist.contents.next
+                mtp.LIBMTP_destroy_playlist_t(playlist)
+                playlist = next
+            #end while
+        #end if
+    #end _ensure_got_playlists
+
+    def _ensure_got_albums(self) :
+        if self.albums_by_id == None :
+            self.albums_by_id = {}
+            album = mtp.LIBMTP_Get_Album_List(self.device)
+            while bool(album) :
+                self.albums_by_id[album.contents.item_id] = Album(album.contents, self)
+                next = album.contents.next
+                mtp.LIBMTP_destroy_album_t(album)
+                album = next
+            #end while
+        #end if
+    #end _ensure_got_albums
 
     # higher-level access to device contents
 
@@ -992,6 +1171,32 @@ class Device() :
         #end while
         return item
     #end get_descendant_by_path
+
+    def get_tracks(self) :
+        self._ensure_got_tracks()
+        return list(self.tracks_by_id.values())
+    #end get_tracks
+
+    def get_track_by_id(self, id) :
+        """returns a track on the device identified by device-wide ID,
+        or None if not found."""
+        self._ensure_got_tracks()
+        return self.tracks_by_id.get(id)
+    #end get_track_by_id
+
+    def get_playlist_by_id(self, id) :
+        """returns a playlist on the device identified by device-wide ID,
+        or None if not found."""
+        self._ensure_got_playlists()
+        return self.playlists_by_id.get(id)
+    #end get_playlist_by_id
+
+    def get_album_by_id(self, id) :
+        """returns an album on the device identified by device-wide ID,
+        or None if not found."""
+        self._ensure_got_albums()
+        return self.albums_by_id.get(id)
+    #end get_album_by_id
 
     # don't use following directly, use above higher-level methods instead
 
@@ -1159,6 +1364,63 @@ class Device() :
         #end with
         return result
     #end get_allowed_property_values
+
+    def send_track \
+      (
+        self,
+        src,
+        destpath,
+        filetype,
+        storageid = 0,
+        title = None,
+        artist = None,
+        composer = None,
+        genre = None,
+        album = None,
+        date = None,
+        duration = 0,
+        rating = 0,
+      ) :
+        parentname, childname = os.path.split(destpath)
+        parent = self.get_descendant_by_path(parentname)
+        if parent == None :
+            raise RuntimeError("cannot find parent folder %s" % parentname)
+        #end if
+        if len(childname) != 0 :
+            child = parent.find_child_by_name(childname)
+        else :
+            child = None
+        #end if
+        if child != None :
+            if not isinstance(child, Folder) and not isinstance(child, Device) :
+                raise RuntimeError("destination track parent must be Folder")
+            #end if
+            parent = child
+            destname = os.path.basename(src)
+        elif len(childname) == 0 :
+            destname = os.path.basename(src)
+        else :
+            destname = childname
+        #end if
+        new_track = common_send_track \
+          (
+            device = self,
+            src = src,
+            parentid = parent.item_id,
+            destname = destname,
+            filetype = filetype,
+            storageid = storageid,
+            title = title,
+            artist = artist,
+            composer = composer,
+            genre = genre,
+            album = album,
+            date = date,
+            duration = duration,
+            rating = rating,
+          )
+        self.tracks_by_id[new_track.item_id] = new_track
+      #end send_track
 
 #end Device
 
@@ -1446,7 +1708,172 @@ class Folder :
         del self.children_by_name
     #end delete
 
+    def send_track \
+      (
+        self,
+        src,
+        destname,
+        filetype,
+        storageid = 0,
+        title = None,
+        artist = None,
+        composer = None,
+        genre = None,
+        album = None,
+        date = None,
+        duration = 0,
+        rating = 0,
+      ) :
+        new_track = common_send_track \
+          (
+            device = self.device,
+            src = src,
+            parentid = self.item_id,
+            destname = destname,
+            filetype = filetype,
+            storageid = storageid,
+            title = title,
+            artist = artist,
+            composer = composer,
+            genre = genre,
+            album = album,
+            date = date,
+            duration = duration,
+            rating = rating,
+          )
+        self.device.tracks_by_id[new_track.item_id] = new_track
+      #end send_track
+
 #end Folder
+
+class Track :
+    """representation of a track on the device. Don't create these objects yourself,
+    always get them from lookup or creation methods."""
+
+    def __init__(self, t, device) :
+        self.device = device
+        for attr in (f[0] for f in track_t.__fields__ if f[0] != "next") :
+            setattr(self, attr, getattr(t, attr))
+        #end for
+    #end __init__
+
+    def set_name(self, newname) :
+        with \
+            LeakProtect \
+              (
+                mtp.LIBMTP_Get_Trackmetadata(self.device.device, self.item_id),
+                mtp.LIBMTP_destroy_track_t
+              ) \
+        as \
+            track \
+        :
+            check_status \
+              (
+                mtp.LIBMTP_Set_Track_Name(self.device.device, track, newname.encode("utf-8"))
+              )
+        #end with
+        self.name = newname
+    #end set_name
+
+#end Track
+
+class Playlist :
+    """representation of a playlist on the device. Don't create these objects yourself,
+    always get them from lookup or creation methods."""
+
+    def __init__(self, p, device) :
+        self.device = device
+        self.item_id = p.playlist_id # consistent name
+        for attr in ("parent_id", "storage_id", "name") :
+            setattr(self, attr, getattr(p, attr))
+        #end for
+        self.tracks = tuple(p.tracks[i] for i in range(0, p.no_tracks))
+    #end __init__
+
+    def _update_tracks(self, new_tracks) :
+        with \
+            LeakProtect \
+              (
+                mtp.LIBMTP_Get_Playlist(self.device.device, self.item_id),
+                mtp.LIBMTP_destroy_playlist_t
+              ) \
+        as \
+            p \
+        :
+            libc.free(p.tracks)
+            p.no_tracks = len(new_tracks)
+            p.tracks = libc.malloc(p.no_tracks * ct.sizeof(ct.c_uint32))
+            for i in range(0, p.no_tracks) :
+                p.tracks[i] = new_tracks[i]
+            #end for
+            check_status \
+              (
+                mtp.LIBMTP_Update_Playlist(self.device.device, p)
+              )
+        #end with
+        self.tracks = new_tracks
+    #end _update_tracks
+
+    def get_tracks(self) :
+        """returns a list of Track objects for the contents of this playlist."""
+        return list(self.device.get_track_by_id(t) for t in self.tracks)
+    #end get_tracks
+
+    def set_tracks(self, new_tracks) :
+        """sets the specified list of Track objects as the new contents of this playlist."""
+        self._update_tracks(tuple(t.item_id for t in new_tracks))
+    #end set_tracks
+
+#end Playlist
+
+class Album :
+    """representation of an album on the device. Don't create these objects yourself,
+    always get them from lookup or creation methods."""
+
+    def __init__(self, a, device) :
+        self.device = device
+        self.item_id = a.album_id # consistent name
+        for attr in ("parent_id", "storage_id", "name", "artist", "composer", "genre") :
+            setattr(self, attr, getattr(a, attr))
+        #end for
+        self.tracks = tuple(a.tracks[i] for i in range(0, a.no_tracks))
+    #end __init__
+
+    def _update_tracks(self, new_tracks) :
+        with \
+            LeakProtect \
+              (
+                mtp.LIBMTP_Get_Album(self.device.device, self.item_id),
+                mtp.LIBMTP_destroy_album_t
+              ) \
+        as \
+            p \
+        :
+            libc.free(p.tracks)
+            p.no_tracks = len(new_tracks)
+            p.tracks = libc.malloc(p.no_tracks * ct.sizeof(ct.c_uint32))
+            for i in range(0, p.no_tracks) :
+                p.tracks[i] = new_tracks[i]
+            #end for
+            check_status \
+              (
+                mtp.LIBMTP_Update_Album(self.device.device, p)
+              )
+        #end with
+        self.tracks = new_tracks
+    #end _update_tracks
+
+    def get_tracks(self) :
+        """returns a list of Track objects for the contents of this album."""
+        return list(self.device.get_track_by_id(t) for t in self.tracks)
+    #end get_tracks
+
+    def set_tracks(self, new_tracks) :
+        """sets the specified list of Track objects as the new contents of this album."""
+        self._update_tracks(tuple(t.item_id for t in new_tracks))
+    #end set_tracks
+
+#end Album
 
 def get_raw_devices() :
     """returns a list of all MTP devices detected on the system."""
