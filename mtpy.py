@@ -1129,6 +1129,7 @@ class Device() :
     #end _ensure_got_children
 
     def _ensure_got_tracks(self) :
+        self._ensure_got_descendants() # doesn't seem to work otherwise
         if self.tracks_by_id == None :
             self.tracks_by_id = {}
             track = mtp.LIBMTP_Get_Tracklisting_With_Callback(self.device, None, None)
@@ -1142,11 +1143,12 @@ class Device() :
     #end _ensure_got_tracks
 
     def _ensure_got_playlists(self) :
+        self._ensure_got_descendants() # doesn't seem to work otherwise
         if self.playlists_by_id == None :
             self.playlists_by_id = {}
             playlist = mtp.LIBMTP_Get_Playlist_List(self.device)
             while bool(playlist) :
-                self.playlists_by_id[playlist.contents.item_id] = Playlist(playlist.contents, self)
+                self.playlists_by_id[playlist.contents.playlist_id] = Playlist(playlist.contents, self)
                 next = playlist.contents.next
                 mtp.LIBMTP_destroy_playlist_t(playlist)
                 playlist = next
@@ -1155,11 +1157,12 @@ class Device() :
     #end _ensure_got_playlists
 
     def _ensure_got_albums(self) :
+        self._ensure_got_descendants() # doesn't seem to work otherwise
         if self.albums_by_id == None :
             self.albums_by_id = {}
             album = mtp.LIBMTP_Get_Album_List(self.device)
             while bool(album) :
-                self.albums_by_id[album.contents.item_id] = Album(album.contents, self)
+                self.albums_by_id[album.contents.album_id] = Album(album.contents, self)
                 next = album.contents.next
                 mtp.LIBMTP_destroy_album_t(album)
                 album = next
@@ -1795,7 +1798,7 @@ class Track :
 
     def __init__(self, t, device) :
         self.device = device
-        for attr in (f[0] for f in track_t.__fields__ if f[0] != "next") :
+        for attr in (f[0] for f in track_t._fields_ if f[0] != "next") :
             setattr(self, attr, getattr(t, attr))
         #end for
     #end __init__
@@ -1825,6 +1828,10 @@ class Track :
         del self.item_id
     #end delete
 
+    def __repr__(self) :
+        return "<Track “%s”>" % self.filename
+    #end __repr__
+
 #end Track
 
 class Playlist :
@@ -1850,11 +1857,11 @@ class Playlist :
         as \
             p \
         :
-            libc.free(p.tracks)
-            p.no_tracks = len(new_tracks)
-            p.tracks = libc.malloc(p.no_tracks * ct.sizeof(ct.c_uint32))
-            for i in range(0, p.no_tracks) :
-                p.tracks[i] = new_tracks[i]
+            libc.free(p.contents.tracks)
+            p.contents.no_tracks = len(new_tracks)
+            p.contents.tracks = ct.cast(libc.malloc(p.contents.no_tracks * ct.sizeof(ct.c_uint32)), ct.POINTER(ct.c_uint32))
+            for i in range(0, p.contents.no_tracks) :
+                p.contents.tracks[i] = new_tracks[i]
             #end for
             check_status \
               (
@@ -1881,6 +1888,10 @@ class Playlist :
         del self.item_id
     #end delete
 
+    def __repr__(self) :
+        return "<Playlist “%s”>" % self.name
+    #end __repr__
+
 #end Playlist
 
 class Album :
@@ -1906,11 +1917,11 @@ class Album :
         as \
             p \
         :
-            libc.free(p.tracks)
-            p.no_tracks = len(new_tracks)
-            p.tracks = libc.malloc(p.no_tracks * ct.sizeof(ct.c_uint32))
-            for i in range(0, p.no_tracks) :
-                p.tracks[i] = new_tracks[i]
+            libc.free(p.contents.tracks)
+            p.contents.no_tracks = len(new_tracks)
+            p.contents.tracks = ct.cast(libc.malloc(p.contents.no_tracks * ct.sizeof(ct.c_uint32)), ct.POINTER(ct.c_uint32))
+            for i in range(0, p.contents.no_tracks) :
+                p.contents.tracks[i] = new_tracks[i]
             #end for
             check_status \
               (
@@ -1936,6 +1947,10 @@ class Album :
         del self.name
         del self.item_id
     #end delete
+
+    def __repr__(self) :
+        return "<Album “%s”>" % self.name
+    #end __repr__
 
 #end Album
 
