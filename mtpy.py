@@ -1798,8 +1798,17 @@ class Track :
 
     def __init__(self, t, device) :
         self.device = device
-        for attr in (f[0] for f in track_t._fields_ if f[0] != "next") :
-            setattr(self, attr, getattr(t, attr))
+        for fieldname, fieldtype in track_t._fields_ :
+            if fieldname != "next" :
+                if fieldtype == ct.c_char_p :
+                    fieldvalue = getattr(t, fieldname)
+                    if fieldvalue != None :
+                        setattr(self, fieldname, fieldvalue.decode("utf-8"))
+                    #end if
+                else :
+                    setattr(self, fieldname, getattr(t, fieldname))
+                #end if
+            #end if
         #end for
     #end __init__
 
@@ -1841,7 +1850,8 @@ class Playlist :
     def __init__(self, p, device) :
         self.device = device
         self.item_id = p.playlist_id # consistent name
-        for attr in ("parent_id", "storage_id", "name") :
+        self.name = p.name.decode("utf-8")
+        for attr in ("parent_id", "storage_id", ) :
             setattr(self, attr, getattr(p, attr))
         #end for
         self.tracks = tuple(p.tracks[i] for i in range(0, p.no_tracks))
@@ -1902,7 +1912,7 @@ class Album :
         self.device = device
         self.item_id = a.album_id # consistent name
         for attr in ("parent_id", "storage_id", "name", "artist", "composer", "genre") :
-            setattr(self, attr, getattr(a, attr))
+            setattr(self, attr, getattr(a, attr).decode("utf-8"))
         #end for
         self.tracks = tuple(a.tracks[i] for i in range(0, a.no_tracks))
     #end __init__
