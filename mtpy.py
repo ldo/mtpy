@@ -257,7 +257,7 @@ def FILETYPE_IS_ADDRESSBOOK(a) :
         (
             a == FILETYPE_VCARD2
         or
-            a == FILETYPE_VCARD2
+            a == FILETYPE_VCARD3
         )
 #end FILETYPE_IS_ADDRESSBOOK
 
