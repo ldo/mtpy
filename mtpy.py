@@ -26,7 +26,7 @@ import ctypes as ct
 import os
 import errno
 
-mtp = ct.cdll.LoadLibrary("libmtp.so")
+mtp = ct.cdll.LoadLibrary("libmtp.so.9")
 mtp.LIBMTP_Init()
 mtp.LIBMTP_Release_Device.restype = None
 mtp.LIBMTP_Clear_Errorstack.restype = None
