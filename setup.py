@@ -16,6 +16,6 @@ distutils.core.setup \
     description = "language bindings for libmtp",
     author = "Lawrence D'Oliveiro",
     author_email = "ldo@geek-central.gen.nz",
-    url = "http://github.com/ldo/mtpy",
+    url = "https://github.com/ldo/mtpy",
     py_modules = ["mtpy"],
   )
